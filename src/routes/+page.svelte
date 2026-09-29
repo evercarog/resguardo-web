@@ -77,6 +77,25 @@
 		return out.sort((a, b) => a.worst - b.worst || (a.client?.name ?? '~').localeCompare(b.client?.name ?? '~'));
 	});
 
+	/** Compara versiones "0.5.1" (true si a es anterior a b). */
+	function versionLess(a: string, b: string) {
+		const pa = a.split('.').map(Number);
+		const pb = b.split('.').map(Number);
+		for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+			const x = pa[i] ?? 0;
+			const y = pb[i] ?? 0;
+			if (x !== y) return x < y;
+		}
+		return false;
+	}
+	/** La versión más reciente de Resguardo entre los equipos. */
+	const newest = $derived(
+		db.devices
+			.map((d) => d.app_version)
+			.filter((v): v is string => !!v && /^\d+(\.\d+)*$/.test(v))
+			.reduce<string | null>((max, v) => (!max || versionLess(max, v) ? v : max), null)
+	);
+
 	const ICON = { ok: CircleCheck, late: Clock, overdue: TriangleAlert, failed: XCircle, empty: CircleDashed };
 
 	async function moveDevice(d: Device, clientId: string) {
@@ -172,6 +191,9 @@
 								<div class="dev-name">
 									<strong>{d.name}</strong>
 									<span class="faint">{d.os ?? ''}{d.app_version ? ` · v${d.app_version}` : ''}</span>
+									{#if d.app_version && newest && versionLess(d.app_version, newest)}
+										<span class="old-version" title="La versión más reciente en tus equipos es la {newest}">Actualizar a {newest}</span>
+									{/if}
 									<!-- En el celular, la conexión va aquí, bajo el nombre -->
 									<span class="conn conn-short" class:online>
 										{#if online}<Wifi size={12} /> Conectado{:else}<WifiOff size={12} />
@@ -715,5 +737,16 @@
 			grid-column: 1 / -1;
 			justify-self: start;
 		}
+	}
+	.old-version {
+		display: inline-block;
+		margin-top: 2px;
+		padding: 0 7px;
+		font-size: 11px;
+		font-weight: 600;
+		line-height: 18px;
+		border-radius: 999px;
+		color: var(--warn);
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
 	}
 </style>
