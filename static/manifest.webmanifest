@@ -1,0 +1,16 @@
+{
+	"name": "Resguardo",
+	"short_name": "Resguardo",
+	"description": "Estado de tus copias de seguridad con restic.",
+	"lang": "es",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#0d1014",
+	"theme_color": "#0d7a69",
+	"icons": [
+		{ "src": "/icons/icon-256.png", "sizes": "256x256", "type": "image/png" },
+		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+	]
+}
