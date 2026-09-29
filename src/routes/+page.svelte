@@ -14,6 +14,7 @@
 		WifiOff,
 		XCircle
 	} from '@lucide/svelte';
+	import PushCard from '$lib/components/PushCard.svelte';
 	import { db, loadAll, subscribe } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration, formatRelative } from '$lib/format';
 	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoStatus, scheduleLabel, type Level } from '$lib/status';
@@ -195,6 +196,8 @@
 			<a class="btn btn-primary" href="/vincular"><Plus size={16} /> Vincular un equipo</a>
 		</div>
 	{/if}
+
+	{#if db.loaded}<PushCard />{/if}
 </div>
 
 <style>

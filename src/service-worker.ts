@@ -44,3 +44,40 @@ sw.addEventListener('fetch', (event) => {
 		})()
 	);
 });
+
+// Avisos enviados por la función "notify".
+sw.addEventListener('push', (event) => {
+	let data: { title?: string; body?: string; url?: string; tag?: string } = {};
+	try {
+		data = event.data?.json() ?? {};
+	} catch {
+		data = { body: event.data?.text() };
+	}
+	event.waitUntil(
+		sw.registration.showNotification(data.title ?? 'Resguardo', {
+			body: data.body ?? '',
+			tag: data.tag,
+			icon: '/icons/icon-256.png',
+			badge: '/icons/icon-256.png',
+			data: { url: data.url ?? '/' }
+		})
+	);
+});
+
+// Al tocar el aviso: abre (o enfoca) la web en la página del repositorio.
+sw.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const url = new URL((event.notification.data?.url as string) ?? '/', sw.location.origin).href;
+	event.waitUntil(
+		(async () => {
+			const wins = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
+			for (const w of wins) {
+				if (new URL(w.url).origin === sw.location.origin) {
+					await w.focus();
+					return (w as WindowClient).navigate(url);
+				}
+			}
+			return sw.clients.openWindow(url);
+		})()
+	);
+});
