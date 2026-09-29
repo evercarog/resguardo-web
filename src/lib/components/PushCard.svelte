@@ -23,20 +23,24 @@
 		error: string;
 		confirmOff: boolean;
 	}>({ ps: null, dismissed: false, busy: false, message: '', error: '', confirmOff: false });
-	let started = false;
+	/** Cuenta para la que se consultó el estado (al cambiar de cuenta se vuelve a consultar). */
+	let started: string | null = null;
 </script>
 
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Bell, BellOff, BellRing, CircleAlert, Send, Share } from '@lucide/svelte';
 	import { disablePush, enablePush, isIos, pushState, testPush, PushError } from '$lib/push';
+	import { auth } from '$lib/session.svelte';
 
 	/** 'top': invitación tras los contadores. 'bottom': versión compacta al final. */
 	let { placement }: { placement: 'top' | 'bottom' } = $props();
 
 	onMount(async () => {
-		if (started) return;
-		started = true;
+		const user = auth.session?.user.id ?? '';
+		if (started === user) return;
+		started = user;
+		shared.ps = null;
 		shared.dismissed = readDismissed();
 		shared.ps = await pushState().catch(() => 'unsupported' as const);
 	});

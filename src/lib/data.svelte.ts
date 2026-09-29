@@ -63,6 +63,8 @@ export async function loadAll(attempt = 0): Promise<void> {
 	db.error = '';
 	db.loaded = true;
 	db.updatedAt = Date.now();
+	// Tiempo real en cuanto hay una carga correcta (también si la primera falló sin conexión).
+	subscribe();
 }
 
 let channel: RealtimeChannel | null = null;

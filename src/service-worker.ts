@@ -79,7 +79,11 @@ sw.addEventListener('notificationclick', (event) => {
 			for (const w of wins) {
 				if (new URL(w.url).origin === sw.location.origin) {
 					await w.focus();
-					return (w as WindowClient).navigate(url.href);
+					try {
+						return await (w as WindowClient).navigate(url.href);
+					} catch {
+						return sw.clients.openWindow(url.href); // ventana no controlada por este service worker
+					}
 				}
 			}
 			return sw.clients.openWindow(url.href);

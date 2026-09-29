@@ -30,7 +30,11 @@ export async function pushState(): Promise<PushState> {
 	}
 	if (Notification.permission === 'denied') return 'denied';
 	const sub = await (await registration()).pushManager.getSubscription();
-	return sub ? 'on' : 'off';
+	if (!sub) return 'off';
+	// La suscripción es del navegador; los avisos, de la cuenta: solo cuenta
+	// como activada si esta cuenta la tiene guardada.
+	const { data } = await supabase.from('push_subscriptions').select('id').eq('endpoint', sub.endpoint).maybeSingle();
+	return data ? 'on' : 'off';
 }
 
 export async function enablePush() {
@@ -46,7 +50,7 @@ export async function enablePush() {
 	);
 	if (error) {
 		await sub.unsubscribe();
-		throw new Error(error.message);
+		throw new PushError(error.message);
 	}
 }
 

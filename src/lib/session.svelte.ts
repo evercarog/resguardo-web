@@ -40,6 +40,13 @@ export async function initAuth() {
 export const refreshAuthLevel = refreshLevel;
 
 export async function signOut() {
+	// Los avisos de esta cuenta no deben seguir llegando a este dispositivo.
+	try {
+		const { disablePush } = await import('$lib/push');
+		await disablePush();
+	} catch {
+		/* sin avisos o sin conexión: se cierra la sesión igualmente */
+	}
 	await supabase.auth.signOut();
 	auth.session = null;
 	auth.level = auth.next = null;
