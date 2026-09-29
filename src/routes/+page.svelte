@@ -5,6 +5,7 @@
 		CircleCheck,
 		CircleDashed,
 		Clock,
+		LoaderCircle,
 		Monitor,
 		MoreHorizontal,
 		Plus,
@@ -17,8 +18,8 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
-	import { formatBytes, formatDate, formatDuration, formatRelative } from '$lib/format';
-	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoStatus, scheduleLabel, type Level } from '$lib/status';
+	import { formatBytes, formatDate, formatDuration, formatRelative, formatTime } from '$lib/format';
+	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoStatus, runningSince, scheduleLabel, type Level } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device } from '$lib/types';
 
@@ -212,6 +213,7 @@
 								<ul class="repos">
 									{#each repos as { repo, status } (repo.repo_id)}
 										{@const Icon = ICON[status.level]}
+										{@const running = runningSince(repo, now)}
 										<li class="repo lvl-{status.level}">
 											<a class="cover" href="/repo/{repo.device_id}/{encodeURIComponent(repo.repo_id)}" aria-label="Ver {repo.name}"></a>
 											<span class="badge lvl-{status.level}"><Icon size={13} />{status.label}</span>
@@ -230,6 +232,12 @@
 													<span class="faint">sin copias</span>
 												{/if}
 											</div>
+											{#if running}
+												<p class="runline">
+													<span class="spin"><LoaderCircle size={13} /></span>
+													Copiando ahora · desde {formatTime(running.toISOString())}
+												</p>
+											{/if}
 											{#if status.level === 'failed' && repo.last_run?.message}
 												<p class="err">{repo.last_run.message}</p>
 											{:else if (status.level === 'late' || status.level === 'overdue') && status.since !== null}
@@ -611,7 +619,8 @@
 		font-size: 11.5px;
 	}
 	.err,
-	.warnline {
+	.warnline,
+	.runline {
 		grid-column: 1 / -1;
 		margin: 0;
 		font-size: 12px;
@@ -622,6 +631,27 @@
 	.warnline {
 		color: var(--lvl);
 		font-weight: 600;
+	}
+	.runline {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--accent);
+		font-weight: 600;
+	}
+	.runline .spin {
+		display: grid;
+		animation: spin 1s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.runline .spin {
+			animation: none;
+		}
 	}
 	.empty-state {
 		display: flex;

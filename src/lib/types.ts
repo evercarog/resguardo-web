@@ -46,6 +46,8 @@ export interface Repo {
 	last_data_added: number | null;
 	last_total_bytes: number | null;
 	last_run: RunInfo | null;
+	/** Copia automática en marcha desde esta hora (la borra el informe siguiente). */
+	running_since: string | null;
 	updated_at: string;
 }
 

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { ArrowLeft, CalendarDays, CircleAlert, Monitor, X } from '@lucide/svelte';
+	import { ArrowLeft, CalendarDays, CircleAlert, LoaderCircle, Monitor, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
-	import { kindLabel, repoStatus, scheduleLabel } from '$lib/status';
+	import { kindLabel, repoStatus, runningSince, scheduleLabel } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
 
@@ -22,6 +22,7 @@
 	const repo = $derived(db.repos.find((r) => r.device_id === deviceId && r.repo_id === repoId) ?? null);
 	const device = $derived(db.devices.find((d) => d.id === deviceId) ?? null);
 	const status = $derived(repo ? repoStatus(repo, now) : null);
+	const running = $derived(repo ? runningSince(repo, now) : null);
 
 	onMount(() => {
 		const t = setInterval(() => (now = Date.now()), 30_000);
@@ -112,6 +113,16 @@
 			</div>
 			{#if status}<span class="badge lvl-{status.level}">{status.label}</span>{/if}
 		</header>
+
+		{#if running}
+			<div class="notice notice-info running" role="status">
+				<LoaderCircle size={16} />
+				<p>
+					<strong>Copia automática en curso</strong> desde las {formatTime(running.toISOString())}. El resultado aparecerá aquí
+					en cuanto termine.
+				</p>
+			</div>
+		{/if}
 
 		<div class="stats">
 			<div class="stat">
@@ -485,6 +496,19 @@
 		.changes,
 		.tags {
 			display: none;
+		}
+	}
+	.running :global(svg) {
+		animation: spin 1s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.running :global(svg) {
+			animation: none;
 		}
 	}
 </style>

@@ -39,6 +39,13 @@ export function repoStatus(repo: Repo, now = Date.now()) {
 	return { level, label: LEVEL_LABEL[level], expected, since, last };
 }
 
+/** Copia automática en curso (se ignora si lleva más de 12 h: el equipo se apagó a mitad). */
+export function runningSince(repo: Repo, now = Date.now()): Date | null {
+	if (!repo.running_since) return null;
+	const t = new Date(repo.running_since);
+	return now - t.getTime() < 12 * HOUR ? t : null;
+}
+
 export function deviceOnline(d: Device, now = Date.now()) {
 	return !!d.last_seen_at && now - new Date(d.last_seen_at).getTime() < OFFLINE_AFTER_MIN * 60_000;
 }
