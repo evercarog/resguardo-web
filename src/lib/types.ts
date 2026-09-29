@@ -84,7 +84,7 @@ export interface PlanInfo {
 
 export interface Maintenance {
 	verify: { schedule: Schedule | null; subset_percent: number } | null;
-	offsite: { schedule: Schedule | null; provider: string; retention: boolean } | null;
+	offsite: { schedule: Schedule | null; provider: string; target_name?: string | null; retention: boolean } | null;
 }
 
 export interface TaskRun {

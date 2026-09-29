@@ -67,7 +67,7 @@
 					<strong>Copia externa</strong>
 					<span class="faint">
 						{#if m?.offsite}
-							{PROVIDERS[m.offsite.provider] ?? 'Otra ubicación'} · {m.offsite.schedule ? scheduleLabel(m.offsite.schedule) : 'programada'}{m
+							{m.offsite.target_name ? `«${m.offsite.target_name}»` : (PROVIDERS[m.offsite.provider] ?? 'Otra ubicación')} · {m.offsite.schedule ? scheduleLabel(m.offsite.schedule) : 'programada'}{m
 								.offsite.retention
 								? ' · con retención'
 								: ''}
