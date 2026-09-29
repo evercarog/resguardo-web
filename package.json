@@ -23,5 +23,8 @@
 	"dependencies": {
 		"@lucide/svelte": "^1.48.0",
 		"@supabase/supabase-js": "^2.117.2"
+	},
+	"engines": {
+		"node": ">=20.19"
 	}
 }
