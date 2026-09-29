@@ -60,6 +60,7 @@
     left: 50%;
     translate: -50% -50%;
     max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - 48px);
     overflow: auto;
     padding: 22px 24px 20px;
     box-shadow: var(--shadow-lg);

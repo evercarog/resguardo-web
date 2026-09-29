@@ -1,60 +1,129 @@
+<script lang="ts" module>
+	import type { PushState } from '$lib/push';
+
+	const DISMISS_KEY = 'resguardo:avisos-ahora-no';
+
+	function readDismissed() {
+		try {
+			return localStorage.getItem(DISMISS_KEY) === '1';
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Estado compartido entre las dos ubicaciones de la tarjeta (arriba, para
+	 * invitar a activar; abajo, compacta, para gestionarlos): solo se ve una.
+	 */
+	const shared = $state<{
+		ps: PushState | null;
+		dismissed: boolean;
+		busy: boolean;
+		message: string;
+		error: string;
+		confirmOff: boolean;
+	}>({ ps: null, dismissed: false, busy: false, message: '', error: '', confirmOff: false });
+	let started = false;
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Bell, BellOff, BellRing, CircleAlert, Send, Share } from '@lucide/svelte';
-	import { disablePush, enablePush, pushState, testPush, type PushState } from '$lib/push';
+	import { disablePush, enablePush, isIos, pushState, testPush, PushError } from '$lib/push';
 
-	let ps = $state<PushState | null>(null);
-	let busy = $state(false);
-	let message = $state('');
-	let error = $state('');
+	/** 'top': invitación tras los contadores. 'bottom': versión compacta al final. */
+	let { placement }: { placement: 'top' | 'bottom' } = $props();
 
 	onMount(async () => {
-		ps = await pushState().catch(() => 'unsupported' as const);
+		if (started) return;
+		started = true;
+		shared.dismissed = readDismissed();
+		shared.ps = await pushState().catch(() => 'unsupported' as const);
 	});
 
-	async function act(fn: () => Promise<void>, ok = '') {
-		busy = true;
-		error = message = '';
+	const invite = $derived((shared.ps === 'off' || shared.ps === 'ios-install') && !shared.dismissed);
+	const visible = $derived(shared.ps !== null && shared.ps !== 'unsupported' && (placement === 'top' ? invite : !invite));
+
+	async function act(fn: () => Promise<void>, ok: string, fallback: string) {
+		shared.busy = true;
+		shared.error = shared.message = '';
+		shared.confirmOff = false;
 		try {
 			await fn();
-			message = ok;
+			shared.message = ok;
 		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
+			// Los mensajes propios se muestran tal cual; el resto, en lenguaje llano.
+			console.error(e);
+			shared.error = e instanceof PushError ? e.message : fallback;
 		} finally {
-			ps = await pushState().catch(() => ps);
-			busy = false;
+			shared.ps = await pushState().catch(() => shared.ps);
+			shared.busy = false;
+		}
+	}
+
+	function dismiss() {
+		shared.dismissed = true;
+		try {
+			localStorage.setItem(DISMISS_KEY, '1');
+		} catch {
+			/* sin almacenamiento: vale solo para esta visita */
 		}
 	}
 </script>
 
-{#if ps && ps !== 'unsupported'}
-	<section class="card push">
-		<span class="ic" class:on={ps === 'on'}>
-			{#if ps === 'on'}<BellRing size={18} />{:else if ps === 'denied'}<BellOff size={18} />{:else}<Bell size={18} />{/if}
+{#if visible}
+	<section class="card push" class:compact={placement === 'bottom'}>
+		<span class="ic" class:on={shared.ps === 'on'}>
+			{#if shared.ps === 'on'}<BellRing size={18} />{:else if shared.ps === 'denied'}<BellOff size={18} />{:else}<Bell size={18} />{/if}
 		</span>
 		<div class="text">
-			{#if ps === 'on'}
+			{#if shared.ps === 'on'}
 				<strong>Avisos activados en este dispositivo</strong>
 				<span class="faint">Te avisamos si una copia falla, se atrasa o un equipo deja de conectarse, y cuando se recupera.</span>
-			{:else if ps === 'off'}
-				<strong>Recibe avisos en este dispositivo</strong>
+			{:else if shared.ps === 'off'}
+				<strong>Recibe avisos en este celular</strong>
 				<span class="faint">Cuando una copia falle, se atrase o un equipo deje de conectarse.</span>
-			{:else if ps === 'denied'}
+			{:else if shared.ps === 'denied'}
 				<strong>Las notificaciones están bloqueadas</strong>
-				<span class="faint">Permítelas para esta web en los ajustes del navegador y vuelve a abrirla.</span>
+				<span class="faint">
+					{#if isIos()}En iPhone: Ajustes → Notificaciones → Resguardo.{:else}Permítelas para esta web en los ajustes del navegador y vuelve a abrirla.{/if}
+				</span>
 			{:else}
 				<strong>Avisos en el iPhone</strong>
 				<span class="faint">Toca <Share size={12} /> Compartir → «Añadir a pantalla de inicio», abre Resguardo desde allí y actívalos.</span>
 			{/if}
-			{#if message}<span class="ok">{message}</span>{/if}
-			{#if error}<span class="err"><CircleAlert size={13} /> {error}</span>{/if}
+			{#if shared.message}<span class="ok" role="status">{shared.message}</span>{/if}
+			{#if shared.error}<span class="err" role="alert"><CircleAlert size={13} /> {shared.error}</span>{/if}
 		</div>
 		<div class="actions">
-			{#if ps === 'off'}
-				<button class="btn btn-primary btn-sm" disabled={busy} onclick={() => act(enablePush, 'Listo. Puedes enviar una prueba.')}>Activar</button>
-			{:else if ps === 'on'}
-				<button class="btn btn-sm" disabled={busy} onclick={() => act(testPush, 'Prueba enviada.')}><Send size={14} /> Probar</button>
-				<button class="btn btn-ghost btn-sm" disabled={busy} onclick={() => act(disablePush)}>Desactivar</button>
+			{#if shared.ps === 'off'}
+				{#if placement === 'top'}
+					<button class="btn btn-ghost btn-sm" disabled={shared.busy} onclick={dismiss}>Ahora no</button>
+				{/if}
+				<button
+					class="btn btn-primary btn-sm"
+					disabled={shared.busy}
+					onclick={() => act(enablePush, 'Listo. Puedes enviar una prueba.', 'No se pudo activar. Inténtalo de nuevo.')}>Activar</button
+				>
+			{:else if shared.ps === 'ios-install' && placement === 'top'}
+				<button class="btn btn-ghost btn-sm" onclick={dismiss}>Ahora no</button>
+			{:else if shared.ps === 'on'}
+				{#if shared.confirmOff}
+					<button class="btn btn-ghost btn-sm" disabled={shared.busy} onclick={() => (shared.confirmOff = false)}>Cancelar</button>
+					<button
+						class="btn btn-danger btn-sm"
+						disabled={shared.busy}
+						onclick={() => act(disablePush, 'Avisos desactivados.', 'No se pudo desactivar. Inténtalo de nuevo.')}>¿Seguro? Desactivar</button
+					>
+				{:else}
+					<button
+						class="btn btn-sm"
+						disabled={shared.busy}
+						onclick={() => act(testPush, 'Prueba enviada.', 'No se pudo enviar la prueba. Inténtalo de nuevo.')}
+						><Send size={14} /> Enviar prueba</button
+					>
+					<button class="btn btn-ghost btn-sm" disabled={shared.busy} onclick={() => (shared.confirmOff = true)}>Desactivar</button>
+				{/if}
 			{/if}
 		</div>
 	</section>
@@ -67,6 +136,10 @@
 		gap: 14px;
 		padding: 14px 16px;
 	}
+	.push.compact {
+		gap: 12px;
+		padding: 10px 14px;
+	}
 	.ic {
 		display: grid;
 		place-items: center;
@@ -76,6 +149,11 @@
 		border-radius: 10px;
 		color: var(--text-3);
 		background: var(--surface-2, rgba(127, 127, 127, 0.1));
+	}
+	.compact .ic {
+		width: 32px;
+		height: 32px;
+		border-radius: 8px;
 	}
 	.ic.on {
 		color: var(--accent-soft-text, var(--accent));
@@ -92,6 +170,12 @@
 	.text .faint {
 		font-size: 12.5px;
 	}
+	.compact .text {
+		font-size: 13px;
+	}
+	.compact .text .faint {
+		font-size: 12px;
+	}
 	.ok {
 		color: var(--success, green);
 		font-size: 12.5px;
@@ -107,6 +191,9 @@
 		display: flex;
 		gap: 6px;
 		flex: none;
+	}
+	.actions:empty {
+		display: none;
 	}
 	@media (max-width: 640px) {
 		.push {

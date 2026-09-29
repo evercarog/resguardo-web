@@ -7,10 +7,23 @@ import type { Client, Device, Repo } from '$lib/types';
 export const db = $state<{
 	loaded: boolean;
 	error: string;
+	/** Cuándo terminó la última carga correcta (ms), para "actualizado hace…". */
+	updatedAt: number | null;
 	clients: Client[];
 	devices: Device[];
 	repos: Repo[];
-}>({ loaded: false, error: '', clients: [], devices: [], repos: [] });
+}>({ loaded: false, error: '', updatedAt: null, clients: [], devices: [], repos: [] });
+
+/** Fallos de red (sin conexión, DNS, servidor inalcanzable) según cada navegador. */
+const NETWORK = /failed to fetch|fetch failed|networkerror|network request failed|load failed|network error|err_internet/i;
+
+export const OFFLINE_MESSAGE = 'Sin conexión. Mostraremos el estado en cuanto vuelva la red.';
+
+/** Mensaje para mostrar: los fallos de red se explican en lenguaje llano. */
+export function friendlyError(message: string) {
+	if ((typeof navigator !== 'undefined' && !navigator.onLine) || NETWORK.test(message)) return OFFLINE_MESSAGE;
+	return message;
+}
 
 /**
  * Justo después de iniciar sesión, el servidor de datos puede tener el reloj
@@ -21,11 +34,18 @@ const CLOCK_SKEW = /issued at future|iat|not yet valid/i;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function loadAll(attempt = 0): Promise<void> {
-	const [c, d, r] = await Promise.all([
-		supabase.from('clients').select('*').order('name'),
-		supabase.from('devices').select('id, client_id, name, os, app_version, created_at, last_seen_at, revoked_at').order('name'),
-		supabase.from('repos').select('*')
-	]);
+	let results;
+	try {
+		results = await Promise.all([
+			supabase.from('clients').select('*').order('name'),
+			supabase.from('devices').select('id, client_id, name, os, app_version, created_at, last_seen_at, revoked_at').order('name'),
+			supabase.from('repos').select('*')
+		]);
+	} catch (e) {
+		db.error = friendlyError(e instanceof Error ? e.message : String(e));
+		return;
+	}
+	const [c, d, r] = results;
 	const err = c.error ?? d.error ?? r.error;
 	if (err) {
 		if (CLOCK_SKEW.test(err.message) && attempt < 5) {
@@ -34,7 +54,7 @@ export async function loadAll(attempt = 0): Promise<void> {
 		}
 		db.error = CLOCK_SKEW.test(err.message)
 			? 'La hora de este dispositivo y la del servidor no coinciden. Comprueba que la fecha y hora del celular estén en automático y recarga.'
-			: err.message;
+			: friendlyError(err.message);
 		return;
 	}
 	db.clients = c.data as Client[];
@@ -42,6 +62,7 @@ export async function loadAll(attempt = 0): Promise<void> {
 	db.repos = r.data as Repo[];
 	db.error = '';
 	db.loaded = true;
+	db.updatedAt = Date.now();
 }
 
 let channel: RealtimeChannel | null = null;

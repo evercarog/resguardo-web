@@ -18,7 +18,8 @@ export function formatDuration(seconds?: number | null) {
   const s = Math.round(seconds);
   if (s < 60) return `${s} s`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min ${s % 60} s`;
+  // "12 min" mejor que "12 min 0 s"; a partir de 10 min los segundos sobran.
+  if (m < 60) return s % 60 === 0 || m >= 10 ? `${m} min` : `${m} min ${s % 60} s`;
   return `${Math.floor(m / 60)} h ${m % 60} min`;
 }
 
@@ -45,9 +46,9 @@ export function formatDay(iso: string) {
 
 const rtf = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
 
-/** "hace 5 minutos", "ayer", "hace 3 meses"… */
-export function formatRelative(iso: string) {
-  const diff = (new Date(iso).getTime() - Date.now()) / 1000;
+/** "hace 5 minutos", "ayer", "hace 3 meses"… (`now` permite refrescarlo con un reloj). */
+export function formatRelative(iso: string | number, now = Date.now()) {
+  const diff = Math.min(0, new Date(iso).getTime() - now) / 1000;
   const abs = Math.abs(diff);
   if (abs < 60) return "hace un momento";
   if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");

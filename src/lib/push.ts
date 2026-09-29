@@ -7,7 +7,10 @@ const PUBLIC_VAPID_KEY = 'BI8-xnoghAexwfwOBIHEFsfsIsktbONMD72oK9ePNpClrVCxCuUGc-
 
 export type PushState = 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on';
 
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+/** Errores con un mensaje pensado para mostrarse tal cual (el resto se traduce a uno genérico). */
+export class PushError extends Error {}
+
+export const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 const standalone = () =>
 	matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
 
@@ -31,7 +34,7 @@ export async function pushState(): Promise<PushState> {
 }
 
 export async function enablePush() {
-	if ((await Notification.requestPermission()) !== 'granted') throw new Error('No se dio permiso para mostrar notificaciones.');
+	if ((await Notification.requestPermission()) !== 'granted') throw new PushError('No se dio permiso para mostrar notificaciones.');
 	const reg = await registration();
 	const sub =
 		(await reg.pushManager.getSubscription()) ??
@@ -57,5 +60,5 @@ export async function disablePush() {
 export async function testPush() {
 	const { data, error } = await supabase.functions.invoke('notify', { body: { test: true } });
 	if (error) throw new Error(error.message);
-	if (!data?.sent) throw new Error('No hay ningún dispositivo suscrito.');
+	if (!data?.sent) throw new PushError('No hay ningún dispositivo suscrito.');
 }

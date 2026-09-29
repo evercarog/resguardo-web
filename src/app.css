@@ -20,6 +20,9 @@
   /* Acento por defecto: verde azulado */
   --accent-l: #0d7a69;
   --accent-d: #3cc4ad;
+
+  /* Alto de la barra superior, con la muesca del iPhone (app instalada). */
+  --header-h: calc(60px + env(safe-area-inset-top));
 }
 
 :root[data-accent="blue"] {
@@ -57,7 +60,7 @@
   --border-strong: #d3d8df;
   --text: #121820;
   --text-2: #4d5766;
-  --text-3: #8791a0;
+  --text-3: #6b7585;
 
   --accent: var(--accent-l);
   --accent-hover: color-mix(in srgb, var(--accent) 84%, black);
@@ -94,7 +97,7 @@
     --border-strong: #333d49;
     --text: #e8ebef;
     --text-2: #a3acb8;
-    --text-3: #6f7a88;
+    --text-3: #8b95a3;
 
     --accent: var(--accent-d);
     --accent-hover: color-mix(in srgb, var(--accent) 82%, white);
@@ -125,7 +128,7 @@
   --border-strong: #333d49;
   --text: #e8ebef;
   --text-2: #a3acb8;
-  --text-3: #6f7a88;
+  --text-3: #8b95a3;
 
   --accent: var(--accent-d);
   --accent-hover: color-mix(in srgb, var(--accent) 82%, white);
@@ -336,6 +339,30 @@ textarea.input {
   box-shadow: var(--focus);
 }
 
+/* En el celular, 16px evita que iOS haga zoom al tocar un campo. */
+@media (max-width: 720px) {
+  .input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Pantallas táctiles: objetivos de al menos 44px (36px en los pequeños). */
+@media (pointer: coarse) {
+  .btn,
+  .input {
+    height: 44px;
+  }
+  .btn-sm {
+    height: 36px;
+  }
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* ---------- Tarjetas y avisos ---------- */
 
 .card {
@@ -421,7 +448,24 @@ textarea.input {
   animation: spin 0.9s linear infinite;
 }
 
+/* Esqueletos de carga: bloques grises con un brillo suave. */
+.skel {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+  }
   *,
   *::before,
   *::after {

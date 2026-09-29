@@ -21,6 +21,15 @@
 	);
 	const max = $derived(Math.max(1, ...points.map((p) => p.v)));
 	let hover = $state<number | null>(null);
+
+	/** Posición del detalle: en los extremos se ancla al borde para no salirse. */
+	const tip = $derived.by(() => {
+		if (hover === null) return null;
+		const f = (hover + 0.5) / points.length;
+		if (f < 0.25) return { align: 'start', left: '0', right: 'auto' };
+		if (f > 0.75) return { align: 'end', left: 'auto', right: '0' };
+		return { align: 'center', left: `${f * 100}%`, right: 'auto' };
+	});
 </script>
 
 {#if points.length >= 2}
@@ -42,8 +51,8 @@
 					<span class="bar" style:height="{Math.max(2, (p.v / max) * 100)}%" style:--i={i}></span>
 				</button>
 			{/each}
-			{#if hover !== null}
-				<div class="tip" style:left="{((hover + 0.5) / points.length) * 100}%">
+			{#if hover !== null && tip}
+				<div class="tip {tip.align}" style:left={tip.left} style:right={tip.right}>
 					<strong>{format(points[hover].v)}</strong>
 					<span>{formatDate(points[hover].time)}</span>
 				</div>
@@ -112,7 +121,6 @@
 	.tip {
 		position: absolute;
 		bottom: calc(100% + 6px);
-		translate: -50% 0;
 		z-index: 2;
 		display: flex;
 		flex-direction: column;
@@ -125,6 +133,15 @@
 		border-radius: 7px;
 		box-shadow: var(--shadow-md);
 		pointer-events: none;
+	}
+	.tip.center {
+		translate: -50% 0;
+	}
+	.tip.start {
+		align-items: flex-start;
+	}
+	.tip.end {
+		align-items: flex-end;
 	}
 	.tip span {
 		color: var(--text-3);

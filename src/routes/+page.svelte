@@ -14,8 +14,9 @@
 		WifiOff,
 		XCircle
 	} from '@lucide/svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
-	import { db, loadAll, subscribe } from '$lib/data.svelte';
+	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration, formatRelative } from '$lib/format';
 	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoStatus, scheduleLabel, type Level } from '$lib/status';
 	import { supabase } from '$lib/supabase';
@@ -24,6 +25,8 @@
 	let refreshing = $state(false);
 	let now = $state(Date.now());
 	let menu = $state<string | null>(null);
+	/** Diálogo abierto: cambiar nombre o desvincular un equipo. */
+	let dialog = $state<{ kind: 'rename' | 'remove'; device: Device } | null>(null);
 
 	onMount(() => {
 		// El tiempo real se conecta cuando la primera carga funcionó (misma sesión válida).
@@ -43,10 +46,16 @@
 		refreshing = false;
 	}
 
-	const repoRows = $derived(db.repos.map((r) => ({ repo: r, status: repoStatus(r, now) })));
+	const repoRows = $derived(
+		db.repos
+			.map((r) => ({ repo: r, status: repoStatus(r, now) }))
+			// Dentro de cada equipo, lo más grave primero.
+			.sort((a, b) => LEVEL_ORDER[a.status.level] - LEVEL_ORDER[b.status.level] || a.repo.name.localeCompare(b.repo.name))
+	);
 	const count = (levels: Level[]) => repoRows.filter((r) => levels.includes(r.status.level)).length;
 	const offline = $derived(db.devices.filter((d) => !d.revoked_at && !deviceOnline(d, now)).length);
 	const attention = $derived(count(['failed', 'overdue', 'late']) + offline);
+	const updated = $derived(db.updatedAt ? `actualizado ${formatRelative(db.updatedAt, now)}` : '');
 
 	/** Equipos agrupados por cliente; lo que necesita atención, primero. */
 	const groups = $derived.by(() => {
@@ -55,11 +64,16 @@
 		const worst = (d: Device) =>
 			Math.min(5, ...repoRows.filter((r) => r.repo.device_id === d.id).map((r) => LEVEL_ORDER[r.status.level])) -
 			(deviceOnline(d, now) ? 0 : 10);
-		const out = [...byClient.entries()].map(([clientId, devices]) => ({
-			client: db.clients.find((c) => c.id === clientId) ?? null,
-			devices: devices.sort((a, b) => worst(a) - worst(b) || a.name.localeCompare(b.name))
-		}));
-		return out.sort((a, b) => (a.client?.name ?? '~').localeCompare(b.client?.name ?? '~'));
+		const out = [...byClient.entries()].map(([clientId, devices]) => {
+			const sorted = devices.sort((a, b) => worst(a) - worst(b) || a.name.localeCompare(b.name));
+			return {
+				client: db.clients.find((c) => c.id === clientId) ?? null,
+				devices: sorted,
+				worst: sorted.length ? worst(sorted[0]) : 5
+			};
+		});
+		// Clientes con el equipo en peor estado, primero; a igualdad, por nombre ("Sin cliente" al final).
+		return out.sort((a, b) => a.worst - b.worst || (a.client?.name ?? '~').localeCompare(b.client?.name ?? '~'));
 	});
 
 	const ICON = { ok: CircleCheck, late: Clock, overdue: TriangleAlert, failed: XCircle, empty: CircleDashed };
@@ -70,21 +84,39 @@
 		await loadAll();
 	}
 
-	async function renameDevice(d: Device) {
-		menu = null;
-		const name = prompt('Nombre del equipo', d.name)?.trim();
-		if (!name || name === d.name) return;
-		await supabase.from('devices').update({ name }).eq('id', d.id);
+	async function renameDevice(d: Device, name: string) {
+		if (name === d.name) return;
+		const { error } = await supabase.from('devices').update({ name }).eq('id', d.id);
+		if (error) throw new Error(friendlyError(error.message));
 		await loadAll();
 	}
 
 	async function removeDevice(d: Device) {
-		menu = null;
-		if (!confirm(`¿Desvincular «${d.name}»? Dejará de enviar su estado. Sus copias no se tocan.`)) return;
-		await supabase.from('devices').delete().eq('id', d.id);
+		const { error } = await supabase.from('devices').delete().eq('id', d.id);
+		if (error) throw new Error(friendlyError(error.message));
 		await loadAll();
 	}
+
+	function openDialog(kind: 'rename' | 'remove', device: Device) {
+		menu = null;
+		dialog = { kind, device };
+	}
+
+	// El menú de opciones se cierra al tocar fuera o con Escape.
+	function onWindowClick(e: MouseEvent) {
+		if (menu && !(e.target as Element | null)?.closest?.('.menu-wrap')) menu = null;
+	}
+	function onWindowKey(e: KeyboardEvent) {
+		if (menu && e.key === 'Escape') {
+			const id = menu;
+			menu = null;
+			// Devuelve el foco al botón que lo abrió.
+			document.querySelector<HTMLElement>(`[aria-controls="menu-${id}"]`)?.focus();
+		}
+	}
 </script>
+
+<svelte:window onclick={onWindowClick} onkeydown={onWindowKey} />
 
 <svelte:head><title>Estado · Resguardo</title></svelte:head>
 
@@ -93,8 +125,18 @@
 		<div>
 			<h1>Estado</h1>
 			<p class="faint">
-				{#if !db.loaded}Cargando…{:else if attention}{attention}
-					{attention === 1 ? 'aviso' : 'avisos'}{:else if db.devices.length}Todo en orden{:else}Aún no hay equipos vinculados{/if}
+				{#if !db.loaded}
+					{db.error ? '' : 'Cargando…'}
+				{:else}
+					{#if attention}
+						<span class="attn">{attention} {attention === 1 ? 'cosa necesita' : 'cosas necesitan'} tu atención</span>
+					{:else if db.devices.length}
+						<span class="calm">Todo en orden</span>
+					{:else}
+						Aún no hay equipos vinculados
+					{/if}
+					{#if updated}<span title={db.updatedAt ? formatDate(new Date(db.updatedAt).toISOString()) : ''}> · {updated}</span>{/if}
+				{/if}
 			</p>
 		</div>
 		<button class="btn btn-sm" onclick={refresh} disabled={refreshing}>
@@ -114,6 +156,8 @@
 			<div class="count off"><WifiOff size={18} /><strong>{offline}</strong><span>Equipos sin conexión</span></div>
 		</div>
 
+		<PushCard placement="top" />
+
 		{#each groups as g (g.client?.id ?? 'none')}
 			<section class="group">
 				<h2>{g.client?.name ?? 'Sin cliente'}</h2>
@@ -127,16 +171,28 @@
 								<div class="dev-name">
 									<strong>{d.name}</strong>
 									<span class="faint">{d.os ?? ''}{d.app_version ? ` · v${d.app_version}` : ''}</span>
+									<!-- En el celular, la conexión va aquí, bajo el nombre -->
+									<span class="conn conn-short" class:online>
+										{#if online}<Wifi size={12} /> Conectado{:else}<WifiOff size={12} />
+											{d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at, now)}` : 'Nunca conectado'}{/if}
+									</span>
 								</div>
-								<span class="conn" class:online title={d.last_seen_at ? formatDate(d.last_seen_at) : ''}>
+								<span class="conn conn-long" class:online title={d.last_seen_at ? formatDate(d.last_seen_at) : ''}>
 									{#if online}<Wifi size={13} /> Conectado{:else}<WifiOff size={13} />
-										{d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at)}` : 'Nunca conectado'}{/if}
+										{d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at, now)}` : 'Nunca conectado'}{/if}
 								</span>
 								<div class="menu-wrap">
-									<button class="icon-btn" title="Opciones" onclick={() => (menu = menu === d.id ? null : d.id)}><MoreHorizontal size={16} /></button>
+									<button
+										class="icon-btn"
+										title="Opciones"
+										aria-label="Opciones de {d.name}"
+										aria-expanded={menu === d.id}
+										aria-controls="menu-{d.id}"
+										onclick={() => (menu = menu === d.id ? null : d.id)}><MoreHorizontal size={16} /></button
+									>
 									{#if menu === d.id}
-										<div class="menu card">
-											<button onclick={() => renameDevice(d)}>Cambiar nombre</button>
+										<div class="menu card" id="menu-{d.id}">
+											<button onclick={() => openDialog('rename', d)}>Cambiar nombre</button>
 											<label>
 												Cliente
 												<select class="input" value={d.client_id ?? ''} onchange={(e) => moveDevice(d, e.currentTarget.value)}>
@@ -144,7 +200,7 @@
 													{#each db.clients as c}<option value={c.id}>{c.name}</option>{/each}
 												</select>
 											</label>
-											<button class="danger" onclick={() => removeDevice(d)}>Desvincular</button>
+											<button class="danger" onclick={() => openDialog('remove', d)}>Desvincular</button>
 										</div>
 									{/if}
 								</div>
@@ -188,6 +244,23 @@
 				</div>
 			</section>
 		{/each}
+	{:else if !db.loaded && !db.error}
+		<!-- Esqueleto mientras llega la primera carga -->
+		<div class="counts" aria-hidden="true">
+			{#each { length: 4 } as _}
+				<div class="count skel-count"><span class="skel sk-ic"></span><span class="skel sk-num"></span><span class="skel sk-txt"></span></div>
+			{/each}
+		</div>
+		<div class="devices" aria-hidden="true">
+			{#each { length: 2 } as _}
+				<div class="card device skel-device">
+					<div class="dev-head"><span class="skel sk-dev"></span><span class="skel sk-name"></span></div>
+					<span class="skel sk-row"></span>
+					<span class="skel sk-row"></span>
+				</div>
+			{/each}
+		</div>
+		<span class="sr-only" role="status">Cargando…</span>
 	{:else if db.loaded}
 		<div class="empty-state card">
 			<Monitor size={28} />
@@ -197,8 +270,30 @@
 		</div>
 	{/if}
 
-	{#if db.loaded}<PushCard />{/if}
+	{#if db.loaded}<PushCard placement="bottom" />{/if}
 </div>
+
+{#if dialog?.kind === 'rename'}
+	{@const d = dialog.device}
+	<ConfirmDialog
+		title="Cambiar nombre"
+		inputLabel="Nombre del equipo"
+		value={d.name}
+		confirmLabel="Guardar"
+		onconfirm={(name) => renameDevice(d, name)}
+		onclose={() => (dialog = null)}
+	/>
+{:else if dialog?.kind === 'remove'}
+	{@const d = dialog.device}
+	<ConfirmDialog
+		title="¿Desvincular «{d.name}»?"
+		message="Dejará de enviar su estado. Sus copias no se tocan."
+		confirmLabel="Desvincular"
+		danger
+		onconfirm={() => removeDevice(d)}
+		onclose={() => (dialog = null)}
+	/>
+{/if}
 
 <style>
 	.page {
@@ -218,6 +313,58 @@
 	.head p {
 		margin: 2px 0 0;
 		font-size: 13.5px;
+	}
+	.attn {
+		color: var(--text-2);
+		font-weight: 600;
+	}
+	.calm {
+		color: var(--success);
+		font-weight: 600;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	/* Esqueletos de carga */
+	.skel-count,
+	.skel-device {
+		animation: none;
+	}
+	.skel-count {
+		row-gap: 6px;
+	}
+	.sk-ic {
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+	}
+	.sk-num {
+		width: 32px;
+		height: 20px;
+	}
+	.sk-txt {
+		grid-column: 2;
+		width: 70%;
+		height: 11px;
+	}
+	.sk-dev {
+		flex: none;
+		width: 34px;
+		height: 34px;
+		border-radius: 9px;
+	}
+	.sk-name {
+		width: 45%;
+		height: 16px;
+	}
+	.sk-row {
+		height: 46px;
+		border-radius: var(--radius);
 	}
 	.counts {
 		display: grid;
@@ -323,6 +470,9 @@
 	.conn.online {
 		color: var(--success);
 	}
+	.conn-short {
+		display: none;
+	}
 	.menu-wrap {
 		position: relative;
 	}
@@ -366,6 +516,17 @@
 	.menu select {
 		height: 30px;
 		font-size: 13px;
+	}
+	@media (pointer: coarse) {
+		.menu {
+			top: 46px;
+		}
+		.menu button {
+			min-height: 44px;
+		}
+		.menu select {
+			height: 44px;
+		}
 	}
 	.empty {
 		margin: 0;
@@ -490,8 +651,16 @@
 		.devices {
 			grid-template-columns: 1fr;
 		}
-		.conn {
+		.conn-long {
 			display: none;
+		}
+		.conn-short {
+			display: inline-flex;
+			font-size: 11.5px;
+		}
+		/* 16px evita el zoom de iOS al tocar el selector de cliente */
+		.menu select {
+			font-size: 16px;
 		}
 		.repo {
 			grid-template-columns: minmax(0, 1fr) auto;

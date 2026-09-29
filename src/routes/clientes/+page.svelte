@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Building2, CircleAlert, Pencil, Plus, Trash2 } from '@lucide/svelte';
-	import { db, loadAll } from '$lib/data.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { supabase } from '$lib/supabase';
 	import type { Client } from '$lib/types';
 
 	let name = $state('');
 	let error = $state('');
+	/** Diálogo abierto: cambiar nombre o eliminar un cliente. */
+	let dialog = $state<{ kind: 'rename' | 'remove'; client: Client } | null>(null);
 
 	onMount(loadAll);
 
@@ -18,23 +21,28 @@
 		const n = name.trim();
 		if (!n) return;
 		const { error: err } = await supabase.from('clients').insert({ name: n });
-		if (err) error = err.message;
+		if (err) error = friendlyError(err.message);
 		else name = '';
 		await loadAll();
 	}
 
-	async function rename(c: Client) {
-		const n = prompt('Nombre del cliente', c.name)?.trim();
-		if (!n || n === c.name) return;
-		await supabase.from('clients').update({ name: n }).eq('id', c.id);
+	async function rename(c: Client, n: string) {
+		if (n === c.name) return;
+		const { error: err } = await supabase.from('clients').update({ name: n }).eq('id', c.id);
+		if (err) throw new Error(friendlyError(err.message));
 		await loadAll();
 	}
 
 	async function remove(c: Client) {
-		const n = devicesOf(c);
-		if (!confirm(`¿Eliminar el cliente «${c.name}»?${n ? ` Sus ${n} equipos quedarán como "Sin cliente".` : ''}`)) return;
-		await supabase.from('clients').delete().eq('id', c.id);
+		const { error: err } = await supabase.from('clients').delete().eq('id', c.id);
+		if (err) throw new Error(friendlyError(err.message));
 		await loadAll();
+	}
+
+	function removeMessage(c: Client) {
+		const n = devicesOf(c);
+		if (!n) return 'Este cliente no tiene equipos.';
+		return n === 1 ? 'Su equipo quedará como «Sin cliente».' : `Sus ${n} equipos quedarán como «Sin cliente».`;
 	}
 </script>
 
@@ -60,14 +68,40 @@
 					<strong>{c.name}</strong>
 					<span class="faint">{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'}</span>
 				</div>
-				<button class="icon-btn" title="Cambiar nombre" onclick={() => rename(c)}><Pencil size={15} /></button>
-				<button class="icon-btn del" title="Eliminar" onclick={() => remove(c)}><Trash2 size={15} /></button>
+				<button class="icon-btn" title="Cambiar nombre" aria-label="Cambiar nombre de {c.name}" onclick={() => (dialog = { kind: 'rename', client: c })}
+					><Pencil size={15} /></button
+				>
+				<button class="icon-btn del" title="Eliminar" aria-label="Eliminar {c.name}" onclick={() => (dialog = { kind: 'remove', client: c })}
+					><Trash2 size={15} /></button
+				>
 			</li>
 		{:else}
 			{#if db.loaded}<li class="faint none">Aún no hay clientes.</li>{/if}
 		{/each}
 	</ul>
 </div>
+
+{#if dialog?.kind === 'rename'}
+	{@const c = dialog.client}
+	<ConfirmDialog
+		title="Cambiar nombre"
+		inputLabel="Nombre del cliente"
+		value={c.name}
+		confirmLabel="Guardar"
+		onconfirm={(n) => rename(c, n)}
+		onclose={() => (dialog = null)}
+	/>
+{:else if dialog?.kind === 'remove'}
+	{@const c = dialog.client}
+	<ConfirmDialog
+		title="¿Eliminar el cliente «{c.name}»?"
+		message={removeMessage(c)}
+		confirmLabel="Eliminar"
+		danger
+		onconfirm={() => remove(c)}
+		onclose={() => (dialog = null)}
+	/>
+{/if}
 
 <style>
 	.page {
@@ -91,7 +125,8 @@
 		padding: 10px;
 	}
 	.add .btn {
-		height: 36px;
+		height: auto;
+		align-self: stretch;
 	}
 	.list {
 		list-style: none;

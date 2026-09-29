@@ -2,14 +2,36 @@
 	import '../app.css';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Activity, Building2, LogOut, Palette, Plus } from '@lucide/svelte';
+	import { onMount } from 'svelte';
+	import { Activity, Building2, LogOut, Palette, Plus, WifiOff } from '@lucide/svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import AppearanceDialog from '$lib/components/AppearanceDialog.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { db, loadAll } from '$lib/data.svelte';
 	import { auth, initAuth, signOut } from '$lib/session.svelte';
 	import { initAppearance } from '$lib/settings.svelte';
 
 	let { children } = $props();
 	let showAppearance = $state(false);
+	let confirmLogout = $state(false);
+	let offline = $state(false);
+
+	// Aviso de "sin conexión" y recarga de los datos en cuanto vuelve la red.
+	onMount(() => {
+		offline = !navigator.onLine;
+		const goOffline = () => (offline = true);
+		const goOnline = () => {
+			offline = false;
+			// Solo con sesión y si ya se intentó cargar (con éxito o con error).
+			if (inside && (db.loaded || db.error)) loadAll();
+		};
+		window.addEventListener('offline', goOffline);
+		window.addEventListener('online', goOnline);
+		return () => {
+			window.removeEventListener('offline', goOffline);
+			window.removeEventListener('online', goOnline);
+		};
+	});
 
 	initAppearance();
 	initAuth();
@@ -46,25 +68,39 @@
 	<div class="shell">
 		<header class="top">
 			<a class="brand" href="/"><Logo size={28} /><span>Resguardo</span></a>
-			<nav class="nav-top">
+			<nav class="nav-top" aria-label="Principal">
 				{#each NAV as n}
-					<a href={n.href} class:on={active(n.href)}><n.icon size={16} />{n.label}</a>
+					<a href={n.href} class:on={active(n.href)} aria-current={active(n.href) ? 'page' : undefined}><n.icon size={16} />{n.label}</a>
 				{/each}
 			</nav>
 			<div class="actions">
-				<button class="icon-btn" title="Apariencia" onclick={() => (showAppearance = true)}><Palette size={17} /></button>
-				<button class="icon-btn" title="Cerrar sesión" onclick={logout}><LogOut size={17} /></button>
+				<button class="icon-btn" title="Apariencia" aria-label="Apariencia" onclick={() => (showAppearance = true)}><Palette size={17} /></button>
+				<button class="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onclick={() => (confirmLogout = true)}><LogOut size={17} /></button>
 			</div>
 		</header>
+		{#if offline}
+			<div class="offline" role="status"><WifiOff size={13} /> Sin conexión. Mostraremos el estado en cuanto vuelva la red.</div>
+		{/if}
 		<main>{@render children()}</main>
 		<!-- En el celular, navegación abajo, al alcance del pulgar -->
-		<nav class="nav-bottom">
+		<nav class="nav-bottom" aria-label="Principal">
 			{#each NAV as n}
-				<a href={n.href} class:on={active(n.href)}><n.icon size={20} /><span>{n.label}</span></a>
+				<a href={n.href} class:on={active(n.href)} aria-current={active(n.href) ? 'page' : undefined}>
+					<span class="pill"><n.icon size={20} /></span><span>{n.label}</span>
+				</a>
 			{/each}
 		</nav>
 	</div>
 	{#if showAppearance}<AppearanceDialog onclose={() => (showAppearance = false)} />{/if}
+	{#if confirmLogout}
+		<ConfirmDialog
+			title="¿Cerrar sesión?"
+			message="Para volver a entrar necesitarás tu contraseña y el código de verificación."
+			confirmLabel="Cerrar sesión"
+			onconfirm={logout}
+			onclose={() => (confirmLogout = false)}
+		/>
+	{/if}
 {:else if PUBLIC_ROUTES.includes(path)}
 	<!-- Sin sesión (o sin 2FA) solo se muestran las pantallas de acceso -->
 	{@render children()}
@@ -96,8 +132,9 @@
 		display: flex;
 		align-items: center;
 		gap: 24px;
-		height: 60px;
-		padding: 0 max(20px, env(safe-area-inset-left));
+		/* Instalada en el iPhone, la barra de estado queda encima (black-translucent). */
+		height: var(--header-h);
+		padding: env(safe-area-inset-top) max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
 		background: color-mix(in srgb, var(--surface) 85%, transparent);
 		backdrop-filter: blur(10px);
 		border-bottom: 1px solid var(--border);
@@ -127,6 +164,7 @@
 		color: var(--text-2);
 		text-decoration: none;
 		border-radius: var(--radius-sm);
+		-webkit-tap-highlight-color: transparent;
 		transition:
 			background 0.15s,
 			color 0.15s;
@@ -143,12 +181,31 @@
 		display: flex;
 		gap: 2px;
 	}
+	.offline {
+		position: sticky;
+		top: var(--header-h);
+		z-index: 4;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 5px max(14px, env(safe-area-inset-right)) 5px max(14px, env(safe-area-inset-left));
+		font-size: 12.5px;
+		font-weight: 600;
+		text-align: center;
+		color: var(--warn);
+		background: var(--warn-soft);
+		border-bottom: 1px solid var(--border);
+	}
+	.offline :global(svg) {
+		flex: none;
+	}
 	main {
 		flex: 1;
 		width: 100%;
 		max-width: 1100px;
 		margin: 0 auto;
-		padding: 24px 20px 40px;
+		padding: 24px max(20px, env(safe-area-inset-right)) 40px max(20px, env(safe-area-inset-left));
 	}
 	.nav-bottom {
 		display: none;
@@ -161,7 +218,8 @@
 			justify-content: space-between;
 		}
 		main {
-			padding: 16px 14px calc(84px + env(safe-area-inset-bottom));
+			padding: 16px max(14px, env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom))
+				max(14px, env(safe-area-inset-left));
 		}
 		.nav-bottom {
 			position: fixed;
@@ -171,7 +229,7 @@
 			z-index: 5;
 			display: grid;
 			grid-template-columns: repeat(3, 1fr);
-			padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+			padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
 			background: color-mix(in srgb, var(--surface) 92%, transparent);
 			backdrop-filter: blur(12px);
 			border-top: 1px solid var(--border);
@@ -181,15 +239,28 @@
 			flex-direction: column;
 			align-items: center;
 			gap: 3px;
-			padding: 6px 0;
+			padding: 4px 0;
 			font-size: 11.5px;
 			font-weight: 600;
 			color: var(--text-3);
 			text-decoration: none;
 			border-radius: var(--radius);
+			-webkit-tap-highlight-color: transparent;
+		}
+		/* Activo: color y además una píldora detrás del icono (no solo color). */
+		.pill {
+			display: grid;
+			place-items: center;
+			width: 52px;
+			height: 28px;
+			border-radius: 999px;
+			transition: background 0.15s;
 		}
 		.nav-bottom a.on {
 			color: var(--accent-soft-text);
+		}
+		.nav-bottom a.on .pill {
+			background: var(--accent-soft);
 		}
 	}
 </style>

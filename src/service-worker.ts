@@ -53,15 +53,18 @@ sw.addEventListener('push', (event) => {
 	} catch {
 		data = { body: event.data?.text() };
 	}
-	event.waitUntil(
-		sw.registration.showNotification(data.title ?? 'Resguardo', {
-			body: data.body ?? '',
-			tag: data.tag,
-			icon: '/icons/icon-256.png',
-			badge: '/icons/icon-256.png',
-			data: { url: data.url ?? '/' }
-		})
-	);
+	// `renotify` y `timestamp` existen en los navegadores aunque falten en los tipos de TypeScript.
+	// `renotify` sin `tag` da error, por eso solo cuando hay etiqueta.
+	const options: NotificationOptions & { renotify?: boolean; timestamp?: number } = {
+		body: data.body ?? '',
+		tag: data.tag,
+		renotify: !!data.tag,
+		timestamp: Date.now(),
+		icon: '/icons/icon-256.png',
+		badge: '/icons/icon-256.png',
+		data: { url: data.url ?? '/' }
+	};
+	event.waitUntil(sw.registration.showNotification(data.title ?? 'Resguardo', options));
 });
 
 // Al tocar el aviso: abre (o enfoca) la web en la página del repositorio.

@@ -38,7 +38,7 @@
       <span class="ticon"><Palette size={19} /></span>
       <h2 id="appearance-title">Apariencia</h2>
     </div>
-    <button class="icon-btn" title="Cerrar" onclick={onclose}><X size={17} /></button>
+    <button class="icon-btn" title="Cerrar" aria-label="Cerrar" onclick={onclose}><X size={17} /></button>
   </header>
 
   <section>

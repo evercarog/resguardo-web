@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { ArrowLeft, CalendarDays, CircleAlert, Monitor, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
-	import { db, loadAll } from '$lib/data.svelte';
+	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
 	import { kindLabel, repoStatus, scheduleLabel } from '$lib/status';
 	import { supabase } from '$lib/supabase';
@@ -16,12 +16,20 @@
 	let loading = $state(true);
 	let error = $state('');
 	let day = $state<string | null>(null);
+	/** Reloj para que el estado ("Al día", "Con retraso"…) se actualice solo. */
+	let now = $state(Date.now());
 
 	const repo = $derived(db.repos.find((r) => r.device_id === deviceId && r.repo_id === repoId) ?? null);
 	const device = $derived(db.devices.find((d) => d.id === deviceId) ?? null);
-	const status = $derived(repo ? repoStatus(repo) : null);
+	const status = $derived(repo ? repoStatus(repo, now) : null);
 
-	onMount(async () => {
+	onMount(() => {
+		const t = setInterval(() => (now = Date.now()), 30_000);
+		load();
+		return () => clearInterval(t);
+	});
+
+	async function load() {
 		if (!db.loaded) await loadAll();
 		const { data, error: e } = await supabase
 			.from('snapshots')
@@ -30,10 +38,10 @@
 			.eq('repo_id', repoId)
 			.order('time', { ascending: false })
 			.limit(500);
-		if (e) error = e.message;
+		if (e) error = friendlyError(e.message);
 		else snapshots = data as SnapshotRow[];
 		loading = false;
-	});
+	}
 
 	const pad = (n: number) => String(n).padStart(2, '0');
 	const keyOf = (iso: string) => {
@@ -76,10 +84,23 @@
 <div class="page">
 	<a class="back btn btn-ghost btn-sm" href="/"><ArrowLeft size={15} /> Estado</a>
 
-	{#if !db.loaded}
-		<p class="faint">Cargando…</p>
+	{#if !db.loaded && db.error}
+		<div class="notice notice-danger"><CircleAlert size={16} /><p>{db.error}</p></div>
+	{:else if !db.loaded}
+		<!-- Esqueleto mientras llegan los datos -->
+		<div class="skel-head" aria-hidden="true">
+			<span class="skel sk-title"></span>
+			<span class="skel sk-sub"></span>
+		</div>
+		<div class="stats" aria-hidden="true">
+			{#each { length: 4 } as _}
+				<div class="stat skel-stat"><span class="skel sk-label"></span><span class="skel sk-value"></span></div>
+			{/each}
+		</div>
+		<div class="card block" aria-hidden="true"><span class="skel sk-block"></span></div>
+		<span class="sr-only" role="status">Cargando…</span>
 	{:else if !repo}
-		<div class="notice notice-danger"><CircleAlert size={16} /><p>Este repositorio ya no existe o no se ha informado.</p></div>
+		<div class="notice notice-danger"><CircleAlert size={16} /><p>Esta copia ya no existe o el equipo aún no la ha informado.</p></div>
 	{:else}
 		<header class="head">
 			<div>
@@ -99,7 +120,7 @@
 				{#if status?.last}<span class="sub">{formatDate(status.last)}</span>{/if}
 			</div>
 			<div class="stat">
-				<span class="label">Snapshots</span>
+				<span class="label">Copias</span>
 				<strong>{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</strong>
 				<span class="sub">en el repositorio</span>
 			</div>
@@ -117,9 +138,11 @@
 
 		{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 
-		{#if !loading && snapshots.length === 0 && !error}
+		{#if loading}
+			<div class="card block" aria-hidden="true"><span class="skel sk-block"></span></div>
+		{:else if snapshots.length === 0 && !error}
 			<div class="card empty">
-				<p class="muted">La lista de snapshots llegará con el próximo informe del equipo (como mucho en una hora).</p>
+				<p class="muted">La lista de copias llegará con el próximo informe del equipo (como mucho en una hora).</p>
 			</div>
 		{/if}
 
@@ -127,14 +150,14 @@
 			<section class="card block">
 				<h2>Actividad</h2>
 				<div class="charts">
-					<ActivityChart title="Nuevo en disco por copia" items={snapshots} value={(s) => s.data_added} format={(v) => formatBytes(v)} />
+					<ActivityChart title="Datos nuevos por copia" items={snapshots} value={(s) => s.data_added} format={(v) => formatBytes(v)} />
 					<ActivityChart title="Duración por copia" items={snapshots} value={(s) => s.duration_s} format={(v) => formatDuration(v)} />
 				</div>
 			</section>
 
 			<section class="card block">
 				<div class="list-head">
-					<h2>Snapshots</h2>
+					<h2>Copias</h2>
 					{#if day}
 						<button class="chip" onclick={() => (day = null)}>
 							<CalendarDays size={13} />
@@ -142,7 +165,7 @@
 							<X size={12} />
 						</button>
 					{:else}
-						<span class="faint">{formatNumber(snapshots.length)} más recientes</span>
+						<span class="faint">{formatNumber(snapshots.length)} {snapshots.length === 1 ? 'más reciente' : 'más recientes'}</span>
 					{/if}
 				</div>
 
@@ -181,7 +204,7 @@
 						</div>
 					{/each}
 				{/each}
-				{#if shown.length > 200}<p class="faint small">Se muestran los 200 más recientes.</p>{/if}
+				{#if shown.length > 200}<p class="faint small">Se muestran las 200 más recientes.</p>{/if}
 			</section>
 		{/if}
 	{/if}
@@ -339,7 +362,8 @@
 	}
 	.day {
 		position: sticky;
-		top: 60px;
+		/* Justo bajo la barra superior (incluida la muesca del iPhone) */
+		top: var(--header-h, 60px);
 		padding: 10px 0 4px;
 		font-size: 12px;
 		font-weight: 650;
@@ -395,6 +419,44 @@
 		display: flex;
 		gap: 4px;
 	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	/* Esqueletos de carga */
+	.skel-head {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.sk-title {
+		width: 40%;
+		height: 26px;
+	}
+	.sk-sub {
+		width: 65%;
+		height: 13px;
+	}
+	.skel-stat {
+		gap: 8px;
+		animation: none;
+	}
+	.sk-label {
+		width: 55%;
+		height: 11px;
+	}
+	.sk-value {
+		width: 40%;
+		height: 20px;
+	}
+	.sk-block {
+		height: 120px;
+		border-radius: var(--radius);
+	}
 	.tag {
 		padding: 0 8px;
 		font-size: 11.5px;
@@ -423,9 +485,6 @@
 		.changes,
 		.tags {
 			display: none;
-		}
-		.day {
-			top: 60px;
 		}
 	}
 </style>
