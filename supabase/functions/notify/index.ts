@@ -1,8 +1,9 @@
 // Notificaciones push de Resguardo.
 //
-// - Sin cuerpo (lo llama pg_cron cada 10 min): calcula los avisos actuales y
-//   notifica solo los que empeoran o se recuperan desde el último aviso. Es
-//   idempotente: llamarla de más no repite notificaciones.
+// - Sin cuerpo (lo llama pg_cron cada 10 min con el secreto "notify_cron" de
+//   Vault en la cabecera x-cron-secret): calcula los avisos actuales y
+//   notifica solo los que empeoran o se recuperan desde el último aviso. Una
+//   sola revisión a la vez (notify_claim), así nunca se repite un aviso.
 // - { test: true } con la sesión del usuario (2FA completada): envía una
 //   notificación de prueba a sus dispositivos.
 //
@@ -27,21 +28,26 @@ function json(data: unknown, status = 200) {
 
 async function sendTo(admin: SupabaseClient, owner: string, payload: Payload) {
 	const { data: subs } = await admin.from('push_subscriptions').select('id, endpoint, p256dh, auth').eq('owner', owner);
-	let sent = 0;
-	for (const s of subs ?? []) {
-		try {
-			await webpush.sendNotification(
+	// En paralelo y con límite de tiempo: un servicio de push lento no retrasa a los demás.
+	const results = await Promise.allSettled(
+		(subs ?? []).map((s) =>
+			webpush.sendNotification(
 				{ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
 				JSON.stringify(payload),
-				{ TTL: 6 * 3600, urgency: 'high' }
-			);
+				{ TTL: 6 * 3600, urgency: 'high', timeout: 10_000 }
+			)
+		)
+	);
+	let sent = 0;
+	for (const [i, r] of results.entries()) {
+		if (r.status === 'fulfilled') {
 			sent++;
-		} catch (e) {
-			const status = (e as { statusCode?: number }).statusCode;
-			// La suscripción ya no existe (app desinstalada, permiso retirado…).
-			if (status === 404 || status === 410) await admin.from('push_subscriptions').delete().eq('id', s.id);
-			else console.error('push', status, (e as Error).message);
+			continue;
 		}
+		const status = (r.reason as { statusCode?: number }).statusCode;
+		// La suscripción ya no existe (app desinstalada, permiso retirado…).
+		if (status === 404 || status === 410) await admin.from('push_subscriptions').delete().eq('id', subs![i].id);
+		else console.error('push', status, (r.reason as Error).message);
 	}
 	return sent;
 }
@@ -89,13 +95,29 @@ Deno.serve(async (req) => {
 		return json({ sent });
 	}
 
-	// Revisión periódica.
+	// Revisión periódica: solo pg_cron (con el secreto de Vault).
+	const cronSecret = req.headers.get('x-cron-secret') ?? '';
+	const { data: ok } = cronSecret.length >= 32 ? await admin.rpc('notify_cron_ok', { p_secret: cronSecret }) : { data: false };
+	if (!ok) return json({ error: 'No autorizado' }, 401);
+	const { data: claimed } = await admin.rpc('notify_claim');
+	if (!claimed) return json({ skipped: 'otra revisión en curso' });
+	try {
+		return await periodic(admin);
+	} finally {
+		await admin.rpc('notify_release');
+	}
+});
+
+async function periodic(admin: SupabaseClient) {
 	const [{ data: alerts, error: e1 }, { data: states, error: e2 }, { data: subs, error: e3 }] = await Promise.all([
 		admin.rpc('current_alerts'),
 		admin.from('alert_state').select('owner, alert_key, level'),
 		admin.from('push_subscriptions').select('owner')
 	]);
-	if (e1 || e2 || e3) return json({ error: (e1 ?? e2 ?? e3)!.message }, 500);
+	if (e1 || e2 || e3) {
+		console.error('notify', (e1 ?? e2 ?? e3)!.message);
+		return json({ error: 'Error interno' }, 500);
+	}
 	// Solo quien tiene algún dispositivo suscrito: así, al activar las
 	// notificaciones, llegan también los avisos que ya estaban pendientes.
 	const subscribed = new Set((subs ?? []).map((s) => s.owner as string));
@@ -134,4 +156,4 @@ Deno.serve(async (req) => {
 	}
 
 	return json({ alerts: alerts?.length ?? 0, notified });
-});
+}

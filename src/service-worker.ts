@@ -67,17 +67,19 @@ sw.addEventListener('push', (event) => {
 // Al tocar el aviso: abre (o enfoca) la web en la página del repositorio.
 sw.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	const url = new URL((event.notification.data?.url as string) ?? '/', sw.location.origin).href;
+	// Solo direcciones de esta misma web (nunca un sitio externo).
+	let url = new URL((event.notification.data?.url as string) ?? '/', sw.location.origin);
+	if (url.origin !== sw.location.origin) url = new URL('/', sw.location.origin);
 	event.waitUntil(
 		(async () => {
 			const wins = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
 			for (const w of wins) {
 				if (new URL(w.url).origin === sw.location.origin) {
 					await w.focus();
-					return (w as WindowClient).navigate(url);
+					return (w as WindowClient).navigate(url.href);
 				}
 			}
-			return sw.clients.openWindow(url);
+			return sw.clients.openWindow(url.href);
 		})()
 	);
 });
