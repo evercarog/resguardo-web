@@ -12,7 +12,15 @@ export const db = $state<{
 	repos: Repo[];
 }>({ loaded: false, error: '', clients: [], devices: [], repos: [] });
 
-export async function loadAll() {
+/**
+ * Justo después de iniciar sesión, el servidor de datos puede tener el reloj
+ * unas décimas por detrás del que emitió la sesión y responder "JWT issued at
+ * future". Es pasajero: se reintenta unos segundos antes de mostrar un error.
+ */
+const CLOCK_SKEW = /issued at future|iat|not yet valid/i;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function loadAll(attempt = 0): Promise<void> {
 	const [c, d, r] = await Promise.all([
 		supabase.from('clients').select('*').order('name'),
 		supabase.from('devices').select('id, client_id, name, os, app_version, created_at, last_seen_at, revoked_at').order('name'),
@@ -20,7 +28,13 @@ export async function loadAll() {
 	]);
 	const err = c.error ?? d.error ?? r.error;
 	if (err) {
-		db.error = err.message;
+		if (CLOCK_SKEW.test(err.message) && attempt < 5) {
+			await wait(1000 * (attempt + 1));
+			return loadAll(attempt + 1);
+		}
+		db.error = CLOCK_SKEW.test(err.message)
+			? 'La hora de este dispositivo y la del servidor no coinciden. Comprueba que la fecha y hora del celular estén en automático y recarga.'
+			: err.message;
 		return;
 	}
 	db.clients = c.data as Client[];

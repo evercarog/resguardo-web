@@ -25,8 +25,8 @@
 	let menu = $state<string | null>(null);
 
 	onMount(() => {
-		loadAll();
-		subscribe();
+		// El tiempo real se conecta cuando la primera carga funcionó (misma sesión válida).
+		loadAll().then(() => db.loaded && subscribe());
 		const t = setInterval(() => (now = Date.now()), 30_000);
 		const onVisible = () => document.visibilityState === 'visible' && loadAll();
 		document.addEventListener('visibilitychange', onVisible);
