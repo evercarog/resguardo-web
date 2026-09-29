@@ -48,7 +48,33 @@ export interface Repo {
 	last_run: RunInfo | null;
 	/** Copia automática en marcha desde esta hora (la borra el informe siguiente). */
 	running_since: string | null;
+	/** Mantenimiento programado en el equipo (verificación y copia externa). */
+	maintenance: Maintenance | null;
+	verify_run: TaskRun | null;
+	offsite_run: TaskRun | null;
+	/** Verificación o subida en curso. */
+	task_running: TaskRunning | null;
 	updated_at: string;
+}
+
+export interface Maintenance {
+	verify: { schedule: Schedule | null; subset_percent: number } | null;
+	offsite: { schedule: Schedule | null; provider: string; retention: boolean } | null;
+}
+
+export interface TaskRun {
+	started: string;
+	finished: string | null;
+	result: 'ok' | 'warning' | 'error';
+	message: string | null;
+	files_new?: number | null;
+}
+
+export interface TaskRunning {
+	kind: 'verify' | 'offsite';
+	started: string;
+	stage: string;
+	done: number;
 }
 
 /** Snapshot informado por el equipo (solo metadatos). */

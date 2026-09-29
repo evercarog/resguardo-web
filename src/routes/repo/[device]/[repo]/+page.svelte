@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { ArrowLeft, CalendarDays, CircleAlert, LoaderCircle, Monitor, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
+	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
 	import { kindLabel, repoStatus, runningSince, scheduleLabel } from '$lib/status';
@@ -146,6 +147,8 @@
 				<span class="sub">{avgAdded != null ? `+${formatBytes(avgAdded)} por copia` : ''}</span>
 			</div>
 		</div>
+
+		<MaintenancePanel {repo} {now} />
 
 		{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 

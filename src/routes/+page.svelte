@@ -237,6 +237,17 @@
 													<span class="spin"><LoaderCircle size={13} /></span>
 													Copiando ahora · desde {formatTime(running.toISOString())}
 												</p>
+											{:else if repo.task_running && now - new Date(repo.task_running.started).getTime() < 12 * 3_600_000}
+												<p class="runline">
+													<span class="spin"><LoaderCircle size={13} /></span>
+													{repo.task_running.kind === 'verify' ? 'Verificando' : 'Subiendo a la copia externa'} · desde {formatTime(repo.task_running.started)}
+												</p>
+											{/if}
+											{#if repo.maintenance?.offsite && repo.offsite_run?.result === 'error'}
+												<p class="err">Copia externa: {repo.offsite_run.message ?? 'falló'}</p>
+											{/if}
+											{#if repo.maintenance?.verify && repo.verify_run?.result === 'error'}
+												<p class="err">Verificación: {repo.verify_run.message ?? 'falló'}</p>
 											{/if}
 											{#if status.level === 'failed' && repo.last_run?.message}
 												<p class="err">{repo.last_run.message}</p>
