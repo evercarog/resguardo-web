@@ -17,7 +17,31 @@ los equipos que tienen [Resguardo](../resguardo) vinculado.
 - Los equipos no son usuarios: solo pueden vincularse con un código de un solo
   uso (15 min) y enviar su informe con un secreto propio, del que la base de
   datos solo guarda la huella SHA-256.
-- CSP estricta generada en la compilación (solo el código propio y Supabase).
+- La huella del secreto de cada equipo vive en una tabla sin ningún acceso
+  desde la web (`device_secrets`).
+- Los informes de los equipos se validan campo a campo en la base de datos
+  (conversiones seguras, límites de tamaño y de frecuencia): un dato raro de un
+  equipo nunca afecta a los demás.
+- CSP estricta generada en la compilación (solo el código propio y el proyecto
+  de Supabase configurado).
+
+## Avisos en el celular (push)
+
+- La función `notify` (Edge Function) revisa cada 10 minutos, llamada por
+  `pg_cron`, qué repositorios fallaron, se atrasaron o qué equipos dejaron de
+  conectarse, y avisa solo cuando algo empeora o se recupera.
+- Solo `pg_cron` puede lanzar la revisión: envía un secreto que la migración
+  genera dentro de Vault (`notify_cron`); nunca está en ningún archivo.
+- Secretos de la función (una sola vez):
+
+  ```bash
+  npx web-push generate-vapid-keys   # o cualquier generador de claves VAPID
+  supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=https://tu-web
+  supabase functions deploy notify --no-verify-jwt
+  ```
+
+  La clave **pública** va también en `src/lib/push.ts`.
+- En el iPhone los avisos requieren añadir la web a la pantalla de inicio.
 
 ## Puesta en marcha
 
@@ -45,10 +69,12 @@ los equipos que tienen [Resguardo](../resguardo) vinculado.
 
 ```
 supabase/migrations/   Tablas, reglas de acceso (RLS) y funciones
+supabase/functions/    Función de avisos push (notify)
 src/lib/supabase.ts    Cliente de Supabase
 src/lib/session.svelte.ts  Sesión y verificación en dos pasos
 src/lib/data.svelte.ts Datos con actualización en tiempo real
 src/lib/status.ts      Cálculo de "al día / con retraso / atrasada"
 src/routes/            Estado, Vincular, Clientes, login y 2FA
-src/service-worker.ts  App instalable (PWA) que abre al instante
+src/lib/push.ts        Suscripción a los avisos
+src/service-worker.ts  App instalable (PWA): abre al instante y muestra los avisos
 ```
