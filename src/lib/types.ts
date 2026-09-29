@@ -49,6 +49,23 @@ export interface Repo {
 	updated_at: string;
 }
 
+/** Snapshot informado por el equipo (solo metadatos). */
+export interface SnapshotRow {
+	device_id: string;
+	repo_id: string;
+	snapshot_id: string;
+	time: string;
+	hostname: string | null;
+	tags: string[];
+	duration_s: number | null;
+	data_added: number | null;
+	total_bytes: number | null;
+	total_files: number | null;
+	files_new: number | null;
+	files_changed: number | null;
+	files_unmodified: number | null;
+}
+
 export interface Run {
 	id: number;
 	device_id: string;

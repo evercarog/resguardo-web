@@ -156,6 +156,7 @@
 									{#each repos as { repo, status } (repo.repo_id)}
 										{@const Icon = ICON[status.level]}
 										<li class="repo lvl-{status.level}">
+											<a class="cover" href="/repo/{repo.device_id}/{encodeURIComponent(repo.repo_id)}" aria-label="Ver {repo.name}"></a>
 											<span class="badge lvl-{status.level}"><Icon size={13} />{status.label}</span>
 											<div class="repo-main">
 												<strong>{repo.name}</strong>
@@ -376,6 +377,8 @@
 		gap: 6px;
 	}
 	.repo {
+		position: relative;
+		transition: border-color 0.15s, background 0.15s;
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: center;
@@ -385,6 +388,16 @@
 		border: 1px solid var(--border);
 		border-left: 3px solid var(--lvl, var(--border));
 		border-radius: var(--radius);
+	}
+	.repo:hover {
+		background: var(--surface-3);
+	}
+	/* Toda la fila es un enlace a la página del repositorio. */
+	.cover {
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		z-index: 1;
 	}
 	.lvl-ok {
 		--lvl: var(--success);
