@@ -20,7 +20,9 @@ export interface Device {
 export type Schedule =
 	| { kind: 'hours'; every: number }
 	| { kind: 'daily'; time: string }
-	| { kind: 'weekly'; weekday: number; time: string };
+	| { kind: 'weekly'; weekday: number; time: string }
+	/** Solo vigilar: las copias las hace otro programa; se esperan cada `every` horas. */
+	| { kind: 'monitor'; every: number };
 
 export interface RunInfo {
 	started: string;

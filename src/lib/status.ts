@@ -23,7 +23,7 @@ export function expectedHours(repo: Repo): number {
 	if (repo.expected_hours) return repo.expected_hours;
 	const s = repo.schedule;
 	if (!s) return 24;
-	return s.kind === 'hours' ? s.every : s.kind === 'daily' ? 24 : 168;
+	return s.kind === 'hours' || s.kind === 'monitor' ? s.every : s.kind === 'daily' ? 24 : 168;
 }
 
 export function repoStatus(repo: Repo, now = Date.now()) {
@@ -47,6 +47,7 @@ const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado
 
 export function scheduleLabel(s: Schedule | null) {
 	if (!s) return 'sin programar';
+	if (s.kind === 'monitor') return `vigilado · se esperan cada ${s.every === 24 ? 'día' : `${s.every} h`}`;
 	if (s.kind === 'hours') return s.every === 1 ? 'cada hora' : `cada ${s.every} h`;
 	if (s.kind === 'daily') return `diaria, ${s.time}`;
 	return `los ${WEEKDAYS[s.weekday]}, ${s.time}`;
