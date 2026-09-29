@@ -82,7 +82,7 @@
 	const dayLabel = (d: Date) => new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
 </script>
 
-<svelte:head><title>{repo?.name ?? 'Repositorio'} · Resguardo</title></svelte:head>
+<svelte:head><title>{repo?.name ?? 'Destino'} · Resguardo</title></svelte:head>
 
 <div class="page">
 	<a class="back btn btn-ghost btn-sm" href="/"><ArrowLeft size={15} /> Estado</a>
@@ -135,7 +135,7 @@
 			<div class="stat">
 				<span class="label">Copias</span>
 				<strong>{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</strong>
-				<span class="sub">en el repositorio</span>
+				<span class="sub">en este destino</span>
 			</div>
 			<div class="stat">
 				<span class="label">Tamaño protegido</span>

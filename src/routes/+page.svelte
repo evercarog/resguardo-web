@@ -251,7 +251,7 @@
 											{/if}
 											{#if status.level !== 'failed'}
 												{#each (repo.plans ?? []).filter((p) => p.last_run?.result === 'error') as p (p.id)}
-													<p class="err">Plan «{p.name}»: {p.last_run?.message ?? 'falló'}</p>
+													<p class="err">Copia «{p.name}»: {p.last_run?.message ?? 'falló'}</p>
 												{/each}
 											{/if}
 											{#if status.level === 'failed' && repo.last_run?.message}

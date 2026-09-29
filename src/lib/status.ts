@@ -101,11 +101,11 @@ export function repoScheduleLabel(repo: Repo) {
 	if (!plans.length) return scheduleLabel(repo.schedule);
 	if (plans.length === 1) {
 		const p = plans[0];
-		return `1 plan: ${p.schedule ? planScheduleLabel(p.schedule) : 'solo a mano'}`;
+		return `1 copia: ${p.schedule ? planScheduleLabel(p.schedule) : 'solo a mano'}`;
 	}
 	// Varios planes: sus nombres si caben; si no, solo cuántos hay.
 	const names = plans.map((p) => p.name).join(', ');
-	return names.length <= 40 ? `${plans.length} planes: ${names}` : `${plans.length} planes`;
+	return names.length <= 40 ? `${plans.length} copias: ${names}` : `${plans.length} copias`;
 }
 
 export function elapsedLabel(hours: number) {

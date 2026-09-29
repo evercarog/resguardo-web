@@ -10,7 +10,7 @@
 
 {#if plans.length}
 	<section class="card plans">
-		<h2>Planes de copia</h2>
+		<h2>Copias que se guardan aquí</h2>
 		<div class="rows">
 			{#each plans as p (p.id)}
 				<div class="row" class:off={!p.schedule}>
