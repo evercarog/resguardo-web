@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { Activity, Building2, FileText, LogOut, Palette, Plus, WifiOff } from '@lucide/svelte';
+	import { Activity, Building2, FileText, History, LogOut, Palette, Plus, WifiOff } from '@lucide/svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import AppearanceDialog from '$lib/components/AppearanceDialog.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -51,6 +51,7 @@
 
 	const NAV = [
 		{ href: '/', label: 'Estado', icon: Activity },
+		{ href: '/actividad', label: 'Actividad', icon: History },
 		{ href: '/vincular', label: 'Vincular', icon: Plus },
 		{ href: '/clientes', label: 'Clientes', icon: Building2 },
 		{ href: '/informes', label: 'Informes', icon: FileText }
@@ -211,6 +212,19 @@
 	.nav-bottom {
 		display: none;
 	}
+	/* Tabletas: los cinco apartados caben arriba si el nombre de la marca se oculta. */
+	@media (max-width: 900px) {
+		.brand span {
+			display: none;
+		}
+		.top {
+			gap: 16px;
+		}
+		.nav-top a {
+			gap: 5px;
+			padding: 7px 9px;
+		}
+	}
 	@media (max-width: 720px) {
 		.nav-top {
 			display: none;
@@ -228,8 +242,10 @@
 			right: 0;
 			bottom: 0;
 			z-index: 5;
+			/* Una columna igual por cada apartado (hasta 5 caben en 320 px). */
 			display: grid;
-			grid-template-columns: repeat(3, 1fr);
+			grid-auto-flow: column;
+			grid-auto-columns: minmax(0, 1fr);
 			padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
 			background: color-mix(in srgb, var(--surface) 92%, transparent);
 			backdrop-filter: blur(12px);
@@ -240,8 +256,11 @@
 			flex-direction: column;
 			align-items: center;
 			gap: 3px;
+			min-width: 0;
+			min-height: 48px;
 			padding: 4px 0;
 			font-size: 11.5px;
+			white-space: nowrap;
 			font-weight: 600;
 			color: var(--text-3);
 			text-decoration: none;
@@ -252,7 +271,7 @@
 		.pill {
 			display: grid;
 			place-items: center;
-			width: 52px;
+			width: min(52px, 100%);
 			height: 28px;
 			border-radius: 999px;
 			transition: background 0.15s;
