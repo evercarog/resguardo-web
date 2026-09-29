@@ -1,7 +1,9 @@
 // Notificaciones push: este navegador se suscribe con la clave pública VAPID y
 // guarda la suscripción en Supabase. La función "notify" envía los avisos.
-import { PUBLIC_VAPID_KEY } from '$env/static/public';
 import { supabase } from '$lib/supabase';
+
+/** Clave pública VAPID (es pública por diseño; la privada vive solo en los secretos de Supabase). */
+const PUBLIC_VAPID_KEY = 'BI8-xnoghAexwfwOBIHEFsfsIsktbONMD72oK9ePNpClrVCxCuUGc-EW5a0enb5wmoNo4lVInCJ3YZ0yxWdogjY';
 
 export type PushState = 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on';
 
