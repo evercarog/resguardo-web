@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { Activity, Building2, LogOut, Palette, Plus, WifiOff } from '@lucide/svelte';
+	import { Activity, Building2, FileText, LogOut, Palette, Plus, WifiOff } from '@lucide/svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import AppearanceDialog from '$lib/components/AppearanceDialog.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -52,7 +52,8 @@
 	const NAV = [
 		{ href: '/', label: 'Estado', icon: Activity },
 		{ href: '/vincular', label: 'Vincular', icon: Plus },
-		{ href: '/clientes', label: 'Clientes', icon: Building2 }
+		{ href: '/clientes', label: 'Clientes', icon: Building2 },
+		{ href: '/informes', label: 'Informes', icon: FileText }
 	];
 	const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 
@@ -261,6 +262,17 @@
 		}
 		.nav-bottom a.on .pill {
 			background: var(--accent-soft);
+		}
+	}
+	@media print {
+		.top,
+		.nav-bottom,
+		.offline {
+			display: none !important;
+		}
+		main {
+			padding: 0 !important;
+			max-width: none !important;
 		}
 	}
 </style>

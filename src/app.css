@@ -474,3 +474,30 @@ textarea.input {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Impresión (informes): siempre claro y sin menús ---------- */
+@media print {
+  :root,
+  :root[data-theme] {
+    color-scheme: light !important;
+    --bg: #ffffff !important;
+    --surface: #ffffff !important;
+    --surface-2: #f7f8fa !important;
+    --surface-3: #eef0f3 !important;
+    --border: #d9dde3 !important;
+    --text: #121820 !important;
+    --text-2: #3d4652 !important;
+    --text-3: #5d6674 !important;
+    --success: #157a3f !important;
+    --warn: #9a5b00 !important;
+    --danger: #c2331b !important;
+    --accent: var(--accent-l) !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #121820;
+  }
+  @page {
+    margin: 14mm;
+  }
+}
