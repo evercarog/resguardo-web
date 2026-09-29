@@ -41,6 +41,19 @@
 		client === '' ? 'Todos los equipos' : client === 'sin' ? 'Sin cliente' : (db.clients.find((c) => c.id === client)?.name ?? 'Cliente')
 	);
 
+	/** El servidor entrega como mucho 1000 filas por consulta: se piden por páginas. */
+	async function pages<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>) {
+		const out: T[] = [];
+		for (let start = 0; start < 50_000; start += 1000) {
+			const { data, error: e } = await query(start, start + 999);
+			if (e) throw new Error(e.message);
+			const rows = (data ?? []) as T[];
+			out.push(...rows);
+			if (rows.length < 1000) break;
+		}
+		return out;
+	}
+
 	async function load() {
 		loading = true;
 		error = '';
@@ -52,25 +65,36 @@
 			loading = false;
 			return;
 		}
-		const [s, r] = await Promise.all([
-			supabase
-				.from('snapshots')
-				.select('device_id, repo_id, time, data_added, duration_s')
-				.in('device_id', ids)
-				.gte('time', range.start.toISOString())
-				.lt('time', range.end.toISOString())
-				.limit(20000),
-			supabase
-				.from('runs')
-				.select('device_id, repo_id, started_at, result, message')
-				.in('device_id', ids)
-				.gte('started_at', range.start.toISOString())
-				.lt('started_at', range.end.toISOString())
-				.limit(20000)
-		]);
-		if (s.error || r.error) error = friendlyError((s.error ?? r.error)!.message);
-		snaps = (s.data ?? []) as SnapRow[];
-		runs = (r.data ?? []) as RunRow[];
+		const from = range.start.toISOString();
+		const to = range.end.toISOString();
+		try {
+			const [s, r] = await Promise.all([
+				pages<SnapRow>((a, z) =>
+					supabase
+						.from('snapshots')
+						.select('device_id, repo_id, time, data_added, duration_s')
+						.in('device_id', ids)
+						.gte('time', from)
+						.lt('time', to)
+						.order('time')
+						.range(a, z)
+				),
+				pages<RunRow>((a, z) =>
+					supabase
+						.from('runs')
+						.select('device_id, repo_id, started_at, result, message')
+						.in('device_id', ids)
+						.gte('started_at', from)
+						.lt('started_at', to)
+						.order('started_at')
+						.range(a, z)
+				)
+			]);
+			snaps = s;
+			runs = r;
+		} catch (e) {
+			error = friendlyError(e instanceof Error ? e.message : String(e));
+		}
 		loading = false;
 	}
 
