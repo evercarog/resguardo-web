@@ -1,5 +1,5 @@
 // Estado de un repositorio y de un equipo (misma lógica que la app de escritorio).
-import type { Device, Repo, Schedule } from '$lib/types';
+import type { Device, PlanSchedule, Repo, Schedule } from '$lib/types';
 
 const HOUR = 3_600_000;
 
@@ -58,6 +58,54 @@ export function scheduleLabel(s: Schedule | null) {
 	if (s.kind === 'hours') return s.every === 1 ? 'cada hora' : `cada ${s.every} h`;
 	if (s.kind === 'daily') return `diaria, ${s.time}`;
 	return `los ${WEEKDAYS[s.weekday]}, ${s.time}`;
+}
+
+/** Nombre del día en plural, para «los domingos», «sábados»… */
+const WEEKDAYS_PLURAL = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados', 'domingos'];
+
+/** Une una lista en español: «a, b y c». */
+function joinList(items: string[]) {
+	return items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`;
+}
+
+/** Días de un plan: «todos los días», «lunes a viernes», «domingos», «lunes, miércoles y viernes». */
+function daysLabel(days: number[]) {
+	const d = [...new Set(days)].filter((n) => n >= 0 && n <= 6).sort((a, b) => a - b);
+	if (d.length === 0) return 'ningún día';
+	if (d.length === 7) return 'todos los días';
+	if (d.length === 1) return WEEKDAYS_PLURAL[d[0]];
+	// Tramo seguido de 3 días o más: «lunes a sábado»
+	if (d.length >= 3 && d.at(-1)! - d[0] === d.length - 1) return `${WEEKDAYS[d[0]]} a ${WEEKDAYS[d.at(-1)!]}`;
+	return joinList(d.map((n) => WEEKDAYS[n]));
+}
+
+/** «a las 13:00 y 18:30» (o «a la 01:30» si es una sola hora de la 1). */
+function atLabel(times: string[]) {
+	const t = [...times].sort();
+	return `${t.length === 1 && t[0].startsWith('01:') ? 'a la' : 'a las'} ${joinList(t)}`;
+}
+
+/** Horario de un plan en lenguaje natural: «lunes a sábado, cada hora de 07:00 a 19:00». */
+export function planScheduleLabel(s: PlanSchedule) {
+	const days = daysLabel(s.days);
+	if (s.mode === 'every') {
+		const every = s.every_hours === 1 ? 'cada hora' : `cada ${s.every_hours} horas`;
+		return `${days}, ${every} de ${s.from} a ${s.to}`;
+	}
+	return s.times.length ? `${days} ${atLabel(s.times)}` : days;
+}
+
+/** Programación de un repositorio: sus planes si los tiene; si no, el horario único de antes. */
+export function repoScheduleLabel(repo: Repo) {
+	const plans = repo.plans ?? [];
+	if (!plans.length) return scheduleLabel(repo.schedule);
+	if (plans.length === 1) {
+		const p = plans[0];
+		return `1 plan: ${p.schedule ? planScheduleLabel(p.schedule) : 'solo a mano'}`;
+	}
+	// Varios planes: sus nombres si caben; si no, solo cuántos hay.
+	const names = plans.map((p) => p.name).join(', ');
+	return names.length <= 40 ? `${plans.length} planes: ${names}` : `${plans.length} planes`;
 }
 
 export function elapsedLabel(hours: number) {

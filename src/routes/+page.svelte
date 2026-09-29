@@ -19,7 +19,7 @@
 	import PushCard from '$lib/components/PushCard.svelte';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration, formatRelative, formatTime } from '$lib/format';
-	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoStatus, runningSince, scheduleLabel, type Level } from '$lib/status';
+	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoScheduleLabel, repoStatus, runningSince, type Level } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device } from '$lib/types';
 
@@ -219,7 +219,7 @@
 											<span class="badge lvl-{status.level}"><Icon size={13} />{status.label}</span>
 											<div class="repo-main">
 												<strong>{repo.name}</strong>
-												<span class="faint">{kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {scheduleLabel(repo.schedule)}</span>
+												<span class="faint">{kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}</span>
 											</div>
 											<div class="repo-facts">
 												{#if status.last}
@@ -248,6 +248,11 @@
 											{/if}
 											{#if repo.maintenance?.verify && repo.verify_run?.result === 'error'}
 												<p class="err">Verificación: {repo.verify_run.message ?? 'falló'}</p>
+											{/if}
+											{#if status.level !== 'failed'}
+												{#each (repo.plans ?? []).filter((p) => p.last_run?.result === 'error') as p (p.id)}
+													<p class="err">Plan «{p.name}»: {p.last_run?.message ?? 'falló'}</p>
+												{/each}
 											{/if}
 											{#if status.level === 'failed' && repo.last_run?.message}
 												<p class="err">{repo.last_run.message}</p>

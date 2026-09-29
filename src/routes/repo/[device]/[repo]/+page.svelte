@@ -4,9 +4,10 @@
 	import { ArrowLeft, CalendarDays, CircleAlert, LoaderCircle, Monitor, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
+	import PlansPanel from '$lib/components/PlansPanel.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
-	import { kindLabel, repoStatus, runningSince, scheduleLabel } from '$lib/status';
+	import { kindLabel, repoScheduleLabel, repoStatus, runningSince } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
 
@@ -109,7 +110,7 @@
 				<h1>{repo.name}</h1>
 				<p class="faint">
 					<Monitor size={13} />
-					{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {scheduleLabel(repo.schedule)}
+					{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
 				</p>
 			</div>
 			{#if status}<span class="badge lvl-{status.level}">{status.label}</span>{/if}
@@ -147,6 +148,8 @@
 				<span class="sub">{avgAdded != null ? `+${formatBytes(avgAdded)} por copia` : ''}</span>
 			</div>
 		</div>
+
+		{#if repo.plans?.length}<PlansPanel plans={repo.plans} {now} />{/if}
 
 		<MaintenancePanel {repo} {now} />
 
@@ -210,7 +213,7 @@
 							<span class="changes faint">
 								{#if s.files_new != null}{formatNumber(s.files_new)} nuevos · {formatNumber(s.files_changed ?? 0)} modif.{/if}
 							</span>
-							<span class="tags">{#each s.tags as t}<span class="tag">{t}</span>{/each}</span>
+							<span class="tags" class:none={!s.tags?.length}>{#each s.tags ?? [] as t}<span class="tag">{t}</span>{/each}</span>
 							<span class="size">
 								{formatBytes(s.total_bytes)}
 								{#if s.data_added != null}<small>+{formatBytes(s.data_added)}</small>{/if}
@@ -495,9 +498,18 @@
 		}
 		.row {
 			grid-template-columns: 64px minmax(0, 1fr) 88px;
+			row-gap: 4px;
 		}
-		.changes,
+		.changes {
+			display: none;
+		}
+		/* En móvil, las etiquetas (qué plan hizo la copia) van bajo el identificador */
 		.tags {
+			grid-column: 2;
+			grid-row: 2;
+			flex-wrap: wrap;
+		}
+		.tags.none {
 			display: none;
 		}
 	}

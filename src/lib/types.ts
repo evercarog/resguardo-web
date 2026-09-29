@@ -54,7 +54,32 @@ export interface Repo {
 	offsite_run: TaskRun | null;
 	/** Verificación o subida en curso. */
 	task_running: TaskRunning | null;
+	/** Planes de copia (versiones con planes; en ese caso `schedule` va vacío). */
+	plans: PlanInfo[] | null;
 	updated_at: string;
+}
+
+/** Horario de un plan de copia. */
+export interface PlanSchedule {
+	/** 0 = lunes … 6 = domingo. */
+	days: number[];
+	/** 'at': a horas fijas; 'every': cada `every_hours` horas entre `from` y `to`. */
+	mode: 'at' | 'every';
+	/** Horas fijas 'HH:MM' (modo 'at'). */
+	times: string[];
+	every_hours: number;
+	from: string;
+	to: string;
+}
+
+/** Plan de copia tal como lo informa el equipo. */
+export interface PlanInfo {
+	id: string;
+	name: string;
+	tags: string[];
+	/** Sin horario: el plan solo se lanza a mano. */
+	schedule: PlanSchedule | null;
+	last_run: TaskRun | null;
 }
 
 export interface Maintenance {
