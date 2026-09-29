@@ -148,12 +148,56 @@ async function periodic(admin: SupabaseClient) {
 		}
 	}
 
-	// Avisos de repositorios o equipos que ya no existen.
+	// Avisos de repositorios o equipos que ya no existen (el resumen semanal
+	// también se anota aquí y no es un aviso: se conserva).
 	for (const s of states ?? []) {
+		if (s.alert_key.startsWith('summary:')) continue;
 		if (subscribed.has(s.owner) && !seen.has(`${s.owner}|${s.alert_key}`)) {
 			await admin.from('alert_state').delete().eq('owner', s.owner).eq('alert_key', s.alert_key);
 		}
 	}
 
+	notified += await weeklySummary(admin, subscribed, alerts ?? [], states ?? []);
 	return json({ alerts: alerts?.length ?? 0, notified });
+}
+
+/** Lunes a partir de las 8:00 (Colombia, UTC−5): resumen de la semana, una vez por semana. */
+async function weeklySummary(
+	admin: SupabaseClient,
+	subscribed: Set<string>,
+	alerts: { owner: string; alert_key: string; level: string }[],
+	states: { owner: string; alert_key: string; level: string }[]
+) {
+	const now = new Date();
+	const bogota = new Date(now.getTime() - 5 * 3_600_000);
+	if (bogota.getUTCDay() !== 1 || bogota.getUTCHours() < 8) return 0;
+	// Semana: la fecha del lunes (así se envía una sola vez).
+	const week = `summary:${bogota.toISOString().slice(0, 10)}`;
+	const since = new Date(now.getTime() - 7 * 24 * 3_600_000).toISOString();
+	let sent = 0;
+	for (const owner of subscribed) {
+		if (states.some((s) => s.owner === owner && s.alert_key === week)) continue;
+		const mine = alerts.filter((a) => a.owner === owner && a.alert_key.startsWith('repo:'));
+		const late = mine.filter((a) => a.level === 'late' || a.level === 'overdue').length;
+		const failed = mine.filter((a) => a.level === 'failed').length;
+		const ok = mine.length - late - failed;
+		const { count } = await admin
+			.from('snapshots')
+			.select('snapshot_id', { count: 'exact', head: true })
+			.eq('owner', owner)
+			.gte('time', since);
+		const parts = [`${ok} al día`];
+		if (late) parts.push(`${late} con retraso`);
+		if (failed) parts.push(`${failed} con fallos`);
+		sent += await sendTo(admin, owner, {
+			title: failed || late ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
+			body: `${count ?? 0} copias en los últimos 7 días · destinos: ${parts.join(', ')}.`,
+			url: '/',
+			tag: 'resumen-semanal'
+		});
+		// Borra resúmenes de semanas anteriores y anota este.
+		await admin.from('alert_state').delete().eq('owner', owner).like('alert_key', 'summary:%');
+		await admin.from('alert_state').upsert({ owner, alert_key: week, level: 'ok', notified_at: now.toISOString() });
+	}
+	return sent;
 }
