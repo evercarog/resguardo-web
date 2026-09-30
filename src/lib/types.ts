@@ -65,6 +65,8 @@ export interface Repo {
 	paused_until?: string | null;
 	/** Cuándo terminó la última pausa (el retraso se cuenta desde aquí). */
 	resumed_at?: string | null;
+	/** Subida a la nube frenada por un cambio inusual (no existe antes de la migración 20260930020000). */
+	offsite_hold?: OffsiteHold | null;
 	updated_at: string;
 }
 
@@ -95,7 +97,24 @@ export interface PlanInfo {
 
 export interface Maintenance {
 	verify: { schedule: Schedule | null; subset_percent: number } | null;
-	offsite: { schedule: Schedule | null; provider: string; target_name?: string | null; retention: boolean } | null;
+	offsite: { schedule: OffsiteSchedule | null; provider: string; target_name?: string | null; retention: boolean } | null;
+}
+
+/** Horario de la copia externa: los de siempre o después de cada copia con cambios (esperando `min_minutes`). */
+export type OffsiteSchedule = Schedule | { kind: 'after_backup'; min_minutes: number };
+
+/**
+ * Subida a la nube frenada: una copia cambió mucho más de lo normal (posible
+ * ransomware) y el equipo espera a que se revise antes de subirla.
+ */
+export interface OffsiteHold {
+	since: string;
+	snapshot_id: string | null;
+	plan_name: string | null;
+	data_added: number | null;
+	files: number | null;
+	typical_bytes: number | null;
+	typical_files: number | null;
 }
 
 export interface TaskRun {

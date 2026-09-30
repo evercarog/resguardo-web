@@ -17,8 +17,11 @@ const CORS = {
 	'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-/** Cuanto mayor, peor. Se notifica al empeorar y al volver a "ok". */
-const SEVERITY: Record<string, number> = { ok: 0, late: 1, offline: 2, overdue: 2, failed: 3 };
+/**
+ * Cuanto mayor, peor. Se notifica al empeorar y al volver a "ok".
+ * "critical": subida a la nube frenada por un cambio inusual (posible ransomware).
+ */
+const SEVERITY: Record<string, number> = { ok: 0, late: 1, offline: 2, overdue: 2, failed: 3, critical: 4 };
 
 type Payload = { title: string; body: string; url: string; tag?: string };
 
@@ -184,6 +187,7 @@ async function weeklySummary(
 		const failed = mine.filter((a) => a.level === 'failed').length;
 		const ok = mine.length - late - failed;
 		const onPause = paused.get(owner) ?? 0;
+		const held = alerts.filter((a) => a.owner === owner && a.alert_key.startsWith('hold:') && a.level === 'critical').length;
 		const { count } = await admin
 			.from('snapshots')
 			.select('snapshot_id', { count: 'exact', head: true })
@@ -198,11 +202,12 @@ async function weeklySummary(
 			.eq('unchanged', true)
 			.gte('started_at', since);
 		const parts = [`${ok} al día`];
+		if (held) parts.push(`${held} con la subida a la nube frenada por un cambio inusual`);
 		if (late) parts.push(`${late} con retraso`);
 		if (failed) parts.push(`${failed} con fallos`);
 		if (onPause) parts.push(`${onPause} en pausa`);
 		sent += await sendTo(admin, owner, {
-			title: failed || late ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
+			title: failed || late || held ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
 			body:
 				`${count ?? 0} copias en los últimos 7 días` +
 				(unchanged ? ` (y ${unchanged} ${unchanged === 1 ? 'revisión' : 'revisiones'} sin cambios)` : '') +

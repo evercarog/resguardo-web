@@ -5,6 +5,7 @@
 		CircleCheck,
 		CircleDashed,
 		CirclePause,
+		CloudOff,
 		Clock,
 		LoaderCircle,
 		Monitor,
@@ -24,6 +25,8 @@
 		LEVEL_ORDER,
 		deviceOnline,
 		elapsedLabel,
+		HOLD_ADVICE,
+		holdSummary,
 		kindLabel,
 		pauseUntilLabel,
 		repoScheduleLabel,
@@ -67,7 +70,13 @@
 	const count = (levels: Level[]) => repoRows.filter((r) => levels.includes(r.status.level)).length;
 	const offline = $derived(db.devices.filter((d) => !d.revoked_at && !deviceOnline(d, now)).length);
 	// Los destinos en pausa no cuentan como atrasados.
-	const attention = $derived(count(['failed', 'overdue', 'late']) + offline);
+	/** Subidas a la nube frenadas por un cambio inusual (posible ransomware). */
+	const held = $derived(
+		db.repos
+			.filter((r) => r.offsite_hold && !db.devices.find((d) => d.id === r.device_id)?.revoked_at)
+			.map((r) => ({ repo: r, hold: r.offsite_hold!, device: db.devices.find((d) => d.id === r.device_id) ?? null }))
+	);
+	const attention = $derived(count(['failed', 'overdue', 'late']) + offline + held.length);
 	const paused = $derived(count(['paused']));
 	const updated = $derived(db.updatedAt ? `actualizado ${formatRelative(db.updatedAt, now)}` : '');
 
@@ -181,6 +190,20 @@
 		<div class="notice notice-danger"><CircleAlert size={16} /><p>{db.error}</p></div>
 	{/if}
 
+	{#each held as h (`${h.repo.device_id}|${h.repo.repo_id}`)}
+		<div class="notice notice-danger hold" role="alert">
+			<CloudOff size={18} />
+			<div>
+				<p>
+					<strong>Cambio inusual en «{h.repo.name}»{h.device ? ` (${h.device.name})` : ''}.</strong>
+					{holdSummary(h.hold, now)} La subida a la nube está frenada.
+				</p>
+				<p class="advice">{HOLD_ADVICE}</p>
+				<a class="btn btn-sm" href="/repo/{h.repo.device_id}/{encodeURIComponent(h.repo.repo_id)}">Ver el destino</a>
+			</div>
+		</div>
+	{/each}
+
 	{#if db.loaded && db.devices.length}
 		<div class="counts">
 			<div class="count ok"><CircleCheck size={18} /><strong>{count(['ok'])}</strong><span>Al día{paused ? ` · ${paused} en pausa` : ''}</span></div>
@@ -280,6 +303,9 @@
 													<span class="spin"><LoaderCircle size={13} /></span>
 													{repo.task_running.kind === 'verify' ? 'Verificando' : 'Subiendo a la copia externa'} · desde {formatTime(repo.task_running.started)}
 												</p>
+											{/if}
+											{#if repo.offsite_hold}
+												<p class="err"><strong>Subida a la nube frenada:</strong> cambio inusual, revísalo en Resguardo</p>
 											{/if}
 											{#if repo.maintenance?.offsite && repo.offsite_run?.result === 'error'}
 												<p class="err">Copia externa: {repo.offsite_run.message ?? 'falló'}</p>
@@ -720,6 +746,19 @@
 		.runline .spin {
 			animation: none;
 		}
+	}
+	.hold {
+		border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+	}
+	.hold > div {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+	.hold .advice {
+		font-size: 12.5px;
+		color: var(--text-2);
 	}
 	.empty-state {
 		display: flex;

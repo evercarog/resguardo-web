@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CircleAlert, CircleCheck, CloudUpload, LoaderCircle, ShieldCheck, TriangleAlert } from '@lucide/svelte';
 	import { formatDate, formatRelative } from '$lib/format';
-	import { scheduleLabel } from '$lib/status';
+	import { offsiteScheduleLabel, scheduleLabel } from '$lib/status';
 	import type { Repo, TaskRun } from '$lib/types';
 
 	// Verificación y copia externa del repositorio, tal como las informa el equipo.
@@ -67,7 +67,7 @@
 					<strong>Copia externa</strong>
 					<span class="faint">
 						{#if m?.offsite}
-							{m.offsite.target_name ? `«${m.offsite.target_name}»` : (PROVIDERS[m.offsite.provider] ?? 'Otra ubicación')} · {m.offsite.schedule ? scheduleLabel(m.offsite.schedule) : 'programada'}{m
+							{m.offsite.target_name ? `«${m.offsite.target_name}»` : (PROVIDERS[m.offsite.provider] ?? 'Otra ubicación')} · {m.offsite.schedule ? offsiteScheduleLabel(m.offsite.schedule) : 'programada'}{m
 								.offsite.retention
 								? ' · con retención'
 								: ''}

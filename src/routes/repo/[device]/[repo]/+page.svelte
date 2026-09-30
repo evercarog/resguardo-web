@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { ArrowLeft, CalendarDays, CircleAlert, CirclePause, LoaderCircle, Monitor, X } from '@lucide/svelte';
+	import { ArrowLeft, CalendarDays, CircleAlert, CirclePause, CloudOff, LoaderCircle, Monitor, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
-	import { kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince } from '$lib/status';
+	import { HOLD_ADVICE, holdSummary, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
 
@@ -129,6 +129,19 @@
 			</div>
 			{#if status}<span class="badge lvl-{status.level}">{status.label}</span>{/if}
 		</header>
+
+		{#if repo.offsite_hold}
+			<div class="notice notice-danger hold" role="alert">
+				<CloudOff size={18} />
+				<div>
+					<p>
+						<strong>Cambio inusual: la subida a la nube está frenada.</strong>
+						{holdSummary(repo.offsite_hold, now)}
+					</p>
+					<p class="advice">{HOLD_ADVICE}</p>
+				</div>
+			</div>
+		{/if}
 
 		{#if status?.pause.active}
 			<div class="notice paused" role="status">
@@ -310,6 +323,18 @@
 	/* En pausa: estado neutro, ni error ni aviso. */
 	.lvl-paused {
 		--lvl: var(--text-3);
+	}
+	.hold {
+		border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+	}
+	.hold > div {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.hold .advice {
+		font-size: 12.5px;
+		color: var(--text-2);
 	}
 	.paused {
 		background: var(--surface-3);

@@ -1,6 +1,6 @@
 // Estado de un repositorio y de un equipo (misma lógica que la app de escritorio).
-import { formatDate } from '$lib/format';
-import type { Device, PlanSchedule, Repo, Schedule } from '$lib/types';
+import { formatBytes, formatDate, formatNumber, formatTime } from '$lib/format';
+import type { Device, OffsiteHold, OffsiteSchedule, PlanSchedule, Repo, Schedule } from '$lib/types';
 
 const HOUR = 3_600_000;
 
@@ -117,6 +117,36 @@ export function scheduleLabel(s: Schedule | null) {
 	if (s.kind === 'daily') return `diaria, ${s.time}`;
 	return `los ${WEEKDAYS[s.weekday]}, ${s.time}`;
 }
+
+/** Horario de la copia externa (también «después de cada copia con cambios»). */
+export function offsiteScheduleLabel(s: OffsiteSchedule | null) {
+	if (s?.kind === 'after_backup') {
+		const wait = s.min_minutes > 0 ? ` (espera ${s.min_minutes >= 60 && s.min_minutes % 60 === 0 ? `${s.min_minutes / 60} h` : `${s.min_minutes} min`})` : '';
+		return `Después de cada copia con cambios${wait}`;
+	}
+	return scheduleLabel(s);
+}
+
+/**
+ * Subida frenada, en una frase: «La copia «Documentos» de las 17:00 añadió
+ * 38 GB y 12.400 archivos (lo normal: ~20 MB y ~40).»
+ */
+export function holdSummary(h: OffsiteHold, now = Date.now()) {
+	const d = new Date(h.since);
+	const today = new Date(now).toDateString() === d.toDateString();
+	const when = today ? `de las ${formatTime(h.since)}` : `del ${formatDate(h.since)}`;
+	const added = [h.data_added != null ? formatBytes(h.data_added) : null, h.files != null ? `${formatNumber(h.files)} archivos` : null]
+		.filter(Boolean)
+		.join(' y ');
+	const usual = [h.typical_bytes != null ? `~${formatBytes(h.typical_bytes)}` : null, h.typical_files != null ? `~${formatNumber(h.typical_files)}` : null]
+		.filter(Boolean)
+		.join(' y ');
+	return `La copia${h.plan_name ? ` «${h.plan_name}»` : ''} ${when} añadió ${added || 'mucho más de lo normal'}${usual ? ` (lo normal: ${usual})` : ''}.`;
+}
+
+/** Qué hacer ante una subida frenada. */
+export const HOLD_ADVICE =
+	'Revisa el cambio en Resguardo, en ese equipo, antes de confirmar la subida. Si sospechas un ransomware, aísla ese servidor (desconéctalo de la red): las versiones anteriores en el servidor de solo añadir siguen intactas.';
 
 /** Nombre del día en plural, para «los domingos», «sábados»… */
 const WEEKDAYS_PLURAL = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados', 'domingos'];
