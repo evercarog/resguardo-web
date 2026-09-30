@@ -148,6 +148,57 @@ export function holdSummary(h: OffsiteHold, now = Date.now()) {
 export const HOLD_ADVICE =
 	'Revisa el cambio en Resguardo, en ese equipo, antes de confirmar la subida. Si sospechas un ransomware, aísla ese servidor (desconéctalo de la red): las versiones anteriores en el servidor de solo añadir siguen intactas.';
 
+/** Servicios de la copia externa. */
+export const OFFSITE_PROVIDERS: Record<string, string> = {
+	b2: 'Backblaze B2',
+	wasabi: 'Wasabi',
+	r2: 'Cloudflare R2',
+	aws: 'Amazon S3',
+	s3: 'S3',
+	otro: 'Otra ubicación'
+};
+
+/** Una tarea «en curso» sin noticias en 12 h se da por cortada. */
+export function taskRunning(repo: Repo, now = Date.now()) {
+	const t = repo.task_running;
+	return t && now - new Date(t.started).getTime() < 12 * HOUR ? t : null;
+}
+
+const num = (n: number | null | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
+
+/**
+ * Verificación o subida en curso, en palabras:
+ * «Subiendo a «Siigo · Backblaze B2»» + «versión 96 de 704 · 14 % · quedan ~25 min».
+ * Sin total, la etapa y el tiempo que lleva.
+ */
+export function taskProgress(repo: Repo, now = Date.now()) {
+	const t = taskRunning(repo, now);
+	if (!t) return null;
+	const off = repo.maintenance?.offsite;
+	const target = off ? (off.target_name ?? OFFSITE_PROVIDERS[off.provider] ?? 'la copia externa') : 'la copia externa';
+	const title = t.kind === 'verify' ? `Verificando «${repo.name}»` : `Subiendo a «${repo.name} · ${target}»`;
+	const hasTotal = num(t.total) && t.total > 0;
+	const hasBytes = num(t.bytes_total) && t.bytes_total > 0 && num(t.bytes_done);
+	let percent = num(t.percent) ? t.percent : null;
+	if (percent === null && hasBytes) percent = (t.bytes_done! / t.bytes_total!) * 100;
+	if (percent === null && hasTotal) percent = (t.done / t.total!) * 100;
+	if (percent !== null) percent = Math.min(100, Math.max(0, percent));
+	const parts: string[] = [];
+	if (hasTotal) parts.push(t.kind === 'offsite' ? `versión ${formatNumber(t.done)} de ${formatNumber(t.total!)}` : `${formatNumber(t.done)} de ${formatNumber(t.total!)}`);
+	if (hasBytes) parts.push(`${formatBytes(t.bytes_done)} de ${formatBytes(t.bytes_total)}`);
+	if (percent !== null) parts.push(`${Math.floor(percent)} %`);
+	if (num(t.eta_s) && t.eta_s > 0) parts.push(`quedan ~${elapsedLabel(t.eta_s / 3600)}`);
+	// Sin progreso medible: la etapa y cuánto lleva.
+	if (!parts.length) parts.push(t.stage || (t.kind === 'verify' ? 'Verificando…' : 'Subiendo…'), `desde hace ${elapsedLabel((now - new Date(t.started).getTime()) / HOUR)}`);
+	return { task: t, title, detail: parts.join(' · '), percent };
+}
+
+/** «hace 12 s», «hace 3 min»: frescura del último informe del equipo. */
+export function freshLabel(iso: string, now = Date.now()) {
+	const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+	return s < 60 ? `hace ${s} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : `hace ${elapsedLabel(s / 3600)}`;
+}
+
 /** Nombre del día en plural, para «los domingos», «sábados»… */
 const WEEKDAYS_PLURAL = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados', 'domingos'];
 

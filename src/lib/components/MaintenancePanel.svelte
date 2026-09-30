@@ -1,26 +1,16 @@
 <script lang="ts">
 	import { CircleAlert, CircleCheck, CloudUpload, LoaderCircle, ShieldCheck, TriangleAlert } from '@lucide/svelte';
 	import { formatDate, formatRelative } from '$lib/format';
-	import { offsiteScheduleLabel, scheduleLabel } from '$lib/status';
+	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, scheduleLabel, taskProgress } from '$lib/status';
 	import type { Repo, TaskRun } from '$lib/types';
 
 	// Verificación y copia externa del repositorio, tal como las informa el equipo.
 	let { repo, now }: { repo: Repo; now: number } = $props();
 
-	const PROVIDERS: Record<string, string> = {
-		b2: 'Backblaze B2',
-		wasabi: 'Wasabi',
-		r2: 'Cloudflare R2',
-		aws: 'Amazon S3',
-		s3: 'S3',
-		otro: 'Otra ubicación'
-	};
-
 	const m = $derived(repo.maintenance);
-	/** Una tarea «en curso» sin noticias en 12 h se da por cortada. */
-	const running = $derived(
-		repo.task_running && now - new Date(repo.task_running.started).getTime() < 12 * 3_600_000 ? repo.task_running : null
-	);
+	/** Tarea en curso (una sin noticias en 12 h se da por cortada). */
+	const progress = $derived(taskProgress(repo, now));
+	const running = $derived(progress?.task ?? null);
 </script>
 
 {#snippet result(run: TaskRun | null)}
@@ -54,7 +44,7 @@
 				</div>
 				<div class="state">
 					{#if running?.kind === 'verify'}
-						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Verificando…'}</span>
+						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Verificando…'}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
 					{:else if m?.verify}
 						{@render result(repo.verify_run)}
 					{/if}
@@ -78,7 +68,7 @@
 				</div>
 				<div class="state">
 					{#if running?.kind === 'offsite'}
-						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Subiendo…'}</span>
+						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Subiendo…'}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
 					{:else if m?.offsite}
 						{@render result(repo.offsite_run)}
 					{/if}

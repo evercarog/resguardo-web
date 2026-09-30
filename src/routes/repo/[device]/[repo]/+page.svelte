@@ -5,9 +5,10 @@
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
+	import TaskProgress from '$lib/components/TaskProgress.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
-	import { HOLD_ADVICE, holdSummary, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince } from '$lib/status';
+	import { HOLD_ADVICE, holdSummary, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince, taskRunning } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
 
@@ -162,6 +163,10 @@
 					en cuanto termine.
 				</p>
 			</div>
+		{/if}
+
+		{#if taskRunning(repo, now)}
+			<div class="card taskbox"><TaskProgress {repo} {device} {now} /></div>
 		{/if}
 
 		<div class="stats">
@@ -335,6 +340,9 @@
 	.hold .advice {
 		font-size: 12.5px;
 		color: var(--text-2);
+	}
+	.taskbox {
+		padding: 12px 14px;
 	}
 	.paused {
 		background: var(--surface-3);

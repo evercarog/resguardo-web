@@ -19,6 +19,7 @@
 	} from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
+	import TaskProgress from '$lib/components/TaskProgress.svelte';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration, formatRelative, formatTime } from '$lib/format';
 	import {
@@ -32,6 +33,7 @@
 		repoScheduleLabel,
 		repoStatus,
 		runningSince,
+		taskRunning,
 		type Level
 	} from '$lib/status';
 	import { supabase } from '$lib/supabase';
@@ -298,11 +300,9 @@
 													<span class="spin"><LoaderCircle size={13} /></span>
 													Copiando ahora · desde {formatTime(running.toISOString())}
 												</p>
-											{:else if repo.task_running && now - new Date(repo.task_running.started).getTime() < 12 * 3_600_000}
-												<p class="runline">
-													<span class="spin"><LoaderCircle size={13} /></span>
-													{repo.task_running.kind === 'verify' ? 'Verificando' : 'Subiendo a la copia externa'} · desde {formatTime(repo.task_running.started)}
-												</p>
+											{:else if taskRunning(repo, now)}
+												<!-- Verificación o subida a la copia externa, con su progreso -->
+												<div class="taskline"><TaskProgress {repo} device={d} {now} /></div>
 											{/if}
 											{#if repo.offsite_hold}
 												<p class="err"><strong>Subida a la nube frenada:</strong> cambio inusual, revísalo en Resguardo</p>
@@ -725,6 +725,9 @@
 		align-items: center;
 		gap: 6px;
 		color: var(--text-2);
+	}
+	.taskline {
+		grid-column: 1 / -1;
 	}
 	.runline {
 		display: flex;

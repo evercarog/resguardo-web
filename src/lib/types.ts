@@ -132,6 +132,14 @@ export interface TaskRunning {
 	started: string;
 	stage: string;
 	done: number;
+	/** Progreso (versiones nuevas; las versiones antiguas no los envían). */
+	total?: number | null;
+	percent?: number | null;
+	eta_s?: number | null;
+	bytes_done?: number | null;
+	bytes_total?: number | null;
+	/** Fecha de la versión que se está subiendo o verificando. */
+	current_snapshot_time?: string | null;
 }
 
 /** Snapshot informado por el equipo (solo metadatos). */
