@@ -177,16 +177,18 @@ export function taskProgress(repo: Repo, now = Date.now()) {
 	const t = taskRunning(repo, now);
 	if (!t) return null;
 	const off = repo.maintenance?.offsite;
-	const target = off ? (off.target_name ?? OFFSITE_PROVIDERS[off.provider] ?? 'la copia externa') : 'la copia externa';
-	const title = t.kind === 'verify' ? `Verificando «${repo.name}»` : `Subiendo a «${repo.name} · ${target}»`;
+	const target = off?.target_name ?? (off ? `${repo.name} · ${OFFSITE_PROVIDERS[off.provider] ?? 'copia externa'}` : 'la copia externa');
+	const title = t.kind === 'verify' ? `Verificando «${repo.name}»` : `Subiendo a «${target}»`;
 	const hasTotal = num(t.total) && t.total > 0;
 	const hasBytes = num(t.bytes_total) && t.bytes_total > 0 && num(t.bytes_done);
-	let percent = num(t.percent) ? t.percent : null;
+	// El equipo envía el porcentaje como fracción (0 a 1).
+	let percent = num(t.percent) ? t.percent * 100 : null;
 	if (percent === null && hasBytes) percent = (t.bytes_done! / t.bytes_total!) * 100;
 	if (percent === null && hasTotal) percent = (t.done / t.total!) * 100;
 	if (percent !== null) percent = Math.min(100, Math.max(0, percent));
 	const parts: string[] = [];
-	if (hasTotal) parts.push(t.kind === 'offsite' ? `versión ${formatNumber(t.done)} de ${formatNumber(t.total!)}` : `${formatNumber(t.done)} de ${formatNumber(t.total!)}`);
+	// En la subida, `done` son las versiones ya subidas: se muestra la que va.
+	if (hasTotal) parts.push(t.kind === 'offsite' ? `versión ${formatNumber(Math.min(t.done + 1, t.total!))} de ${formatNumber(t.total!)}` : `${formatNumber(t.done)} de ${formatNumber(t.total!)}`);
 	if (hasBytes) parts.push(`${formatBytes(t.bytes_done)} de ${formatBytes(t.bytes_total)}`);
 	if (percent !== null) parts.push(`${Math.floor(percent)} %`);
 	if (num(t.eta_s) && t.eta_s > 0) parts.push(`quedan ~${elapsedLabel(t.eta_s / 3600)}`);
