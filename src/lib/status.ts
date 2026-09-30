@@ -158,10 +158,12 @@ export const OFFSITE_PROVIDERS: Record<string, string> = {
 	otro: 'Otra ubicación'
 };
 
-/** Una tarea «en curso» sin noticias en 12 h se da por cortada. */
+/** Una tarea «en curso» de hace más de 72 h se da por cortada (una primera
+ *  subida a la nube puede durar muchas horas; si el proceso muere, el equipo
+ *  deja de informarla). */
 export function taskRunning(repo: Repo, now = Date.now()) {
 	const t = repo.task_running;
-	return t && now - new Date(t.started).getTime() < 12 * HOUR ? t : null;
+	return t && now - new Date(t.started).getTime() < 72 * HOUR ? t : null;
 }
 
 const num = (n: number | null | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
