@@ -42,12 +42,50 @@ export function pauseState(repo: Repo, now = Date.now()) {
 	return { active, until, since: repo.paused ? (repo.paused_since ?? null) : null, resumedAt: active ? null : ended };
 }
 
+const time = (iso: string | null | undefined) => {
+	const t = iso ? new Date(iso).getTime() : NaN;
+	return Number.isFinite(t) ? t : null;
+};
+
+/**
+ * Última copia correcta (ok o con avisos) del destino o de cualquiera de sus
+ * planes, la más reciente. Las que fallan no cuentan.
+ */
+export function lastOkRun(repo: Repo): { finished: string; unchanged: boolean } | null {
+	const runs = [repo.last_run, ...(repo.plans ?? []).map((p) => p.last_run)];
+	let best: { finished: string; unchanged: boolean } | null = null;
+	for (const r of runs) {
+		if (!r || (r.result !== 'ok' && r.result !== 'warning') || time(r.finished) === null) continue;
+		if (!best || time(r.finished)! > time(best.finished)!) best = { finished: r.finished!, unchanged: r.unchanged === true };
+	}
+	return best;
+}
+
+/**
+ * Última revisión correcta: la última versión o la última copia correcta, lo
+ * más reciente (misma lógica que los avisos en el servidor). Con «Solo guardar
+ * si hay cambios», una noche sin cambios no crea versión pero sí cuenta.
+ */
+export function lastCheck(repo: Repo) {
+	const ok = lastOkRun(repo);
+	const snap = time(repo.last_snapshot_at);
+	const at = Math.max(snap ?? -Infinity, time(ok?.finished) ?? -Infinity);
+	return {
+		at: Number.isFinite(at) ? at : null,
+		/** Revisión sin cambios más reciente que la última versión (para «última revisión … · sin cambios»). */
+		unchangedAt: ok?.unchanged && (snap === null || time(ok.finished)! > snap) ? ok.finished : null
+	};
+}
+
 export function repoStatus(repo: Repo, now = Date.now()) {
 	const expected = expectedHours(repo);
 	const last = repo.last_snapshot_at ?? repo.last_run?.finished ?? null;
 	const pause = pauseState(repo, now);
-	// Tras una pausa, el plazo empieza a contar al reanudar.
-	const from = last ? Math.max(new Date(last).getTime(), pause.resumedAt ? new Date(pause.resumedAt).getTime() : 0) : null;
+	const check = lastCheck(repo);
+	// El retraso se cuenta desde la última revisión correcta (o, si no hay
+	// ninguna, desde la última copia); tras una pausa, desde que se reanudó.
+	const base = check.at ?? time(last);
+	const from = base !== null ? Math.max(base, time(pause.resumedAt) ?? 0) : null;
 	const since = from !== null ? (now - from) / HOUR : null;
 	let level: Level;
 	if (repo.last_run?.result === 'error') level = 'failed';
@@ -56,7 +94,7 @@ export function repoStatus(repo: Repo, now = Date.now()) {
 	else if (since > expected * 2 + 1) level = 'overdue';
 	else if (since > expected * 1.25 + 1) level = 'late';
 	else level = 'ok';
-	return { level, label: LEVEL_LABEL[level], expected, since, last, pause };
+	return { level, label: LEVEL_LABEL[level], expected, since, last, unchangedAt: check.unchangedAt, pause };
 }
 
 /** Copia automática en curso (se ignora si lleva más de 12 h: el equipo se apagó a mitad). */

@@ -15,6 +15,8 @@
 	const repoId = $derived(page.params.repo ?? '');
 
 	let snapshots = $state<SnapshotRow[]>([]);
+	/** Días (AAAA-MM-DD) con copias correctas sin cambios («Solo guardar si hay cambios»). */
+	let unchangedDays = $state(new Set<string>());
 	let loading = $state(true);
 	let error = $state('');
 	let day = $state<string | null>(null);
@@ -44,6 +46,18 @@
 		if (e) error = friendlyError(e.message);
 		else snapshots = data as SnapshotRow[];
 		loading = false;
+		// Copias sin cambios de los últimos 60 días (no crean versión). Si falla, se pintan como días sin copias.
+		const since = new Date(Date.now() - 61 * 86_400_000).toISOString();
+		const { data: runs } = await supabase
+			.from('runs')
+			.select('started_at, finished_at')
+			.eq('device_id', deviceId)
+			.eq('repo_id', repoId)
+			.eq('unchanged', true)
+			.in('result', ['ok', 'warning'])
+			.gte('started_at', since)
+			.limit(2000);
+		unchangedDays = new Set((runs ?? []).map((x) => keyOf(x.finished_at ?? x.started_at)));
 	}
 
 	const pad = (n: number) => String(n).padStart(2, '0');
@@ -64,7 +78,7 @@
 		return Array.from({ length: 60 }, (_, i) => {
 			const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (59 - i));
 			const k = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-			return { key: k, date: d, n: counts.get(k) ?? 0 };
+			return { key: k, date: d, n: counts.get(k) ?? 0, same: unchangedDays.has(k) };
 		});
 	});
 	const maxDay = $derived(Math.max(1, ...days.map((d) => d.n)));
@@ -142,6 +156,9 @@
 				<span class="label">Última copia</span>
 				<strong>{status?.last ? formatRelative(status.last) : '—'}</strong>
 				{#if status?.last}<span class="sub">{formatDate(status.last)}</span>{/if}
+				{#if status?.unchangedAt}
+					<span class="sub" title={formatDate(status.unchangedAt)}>Última revisión {formatRelative(status.unchangedAt)} · sin cambios</span>
+				{/if}
 			</div>
 			<div class="stat">
 				<span class="label">Copias</span>
@@ -202,15 +219,19 @@
 						<button
 							class="d"
 							class:has={d.n > 0}
+							class:same={!d.n && d.same}
 							class:on={day === d.key}
 							style:--o={d.n ? 0.35 + 0.65 * (d.n / maxDay) : 1}
-							title="{dayLabel(d.date)}: {d.n ? `${d.n} ${d.n === 1 ? 'copia' : 'copias'}` : 'sin copias'}"
+							title="{dayLabel(d.date)}: {d.n ? `${d.n} ${d.n === 1 ? 'copia' : 'copias'}` : d.same ? 'sin cambios' : 'sin copias'}"
 							onclick={() => (day = day === d.key ? null : d.key)}
 							disabled={!d.n}
 						></button>
 					{/each}
 				</div>
-				<p class="faint small">Últimos 60 días · toca un día para ver sus copias.</p>
+				<p class="faint small">
+					Últimos 60 días · toca un día para ver sus copias.{#if unchangedDays.size}
+						Con borde: se revisó y no había cambios.{/if}
+				</p>
 
 				{#each groups as g (g.day)}
 					<div class="day">{g.day}</div>
@@ -387,6 +408,10 @@
 	.d.has {
 		background: color-mix(in srgb, var(--accent) calc(var(--o) * 100%), var(--surface-3));
 		cursor: pointer;
+	}
+	/* Día sin versión pero revisado: la copia salió bien sin cambios (neutro). */
+	.d.same {
+		box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, var(--surface-3));
 	}
 	.d.on {
 		outline: 2px solid var(--text);

@@ -30,6 +30,8 @@ export interface RunInfo {
 	result: 'ok' | 'warning' | 'error';
 	message: string;
 	data_added?: number | null;
+	/** Salió bien sin cambios: no creó versión («Solo guardar si hay cambios»). */
+	unchanged?: boolean;
 }
 
 export interface Repo {
@@ -87,6 +89,8 @@ export interface PlanInfo {
 	/** Sin horario: el plan solo se lanza a mano. */
 	schedule: PlanSchedule | null;
 	last_run: TaskRun | null;
+	/** «Solo guardar si hay cambios»: sin cambios, la copia no crea versión. */
+	skip_unchanged?: boolean;
 }
 
 export interface Maintenance {
@@ -100,6 +104,8 @@ export interface TaskRun {
 	result: 'ok' | 'warning' | 'error';
 	message: string | null;
 	files_new?: number | null;
+	/** Salió bien sin cambios: no creó versión. */
+	unchanged?: boolean;
 }
 
 export interface TaskRunning {
@@ -135,4 +141,6 @@ export interface Run {
 	result: 'ok' | 'warning' | 'error';
 	message: string | null;
 	data_added: number | null;
+	/** Salió bien sin cambios (no existe antes de la migración 20260930010000). */
+	unchanged?: boolean;
 }

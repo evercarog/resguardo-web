@@ -263,6 +263,9 @@
 														{#if repo.last_duration_s != null}{formatDuration(repo.last_duration_s)}{/if}
 														{#if repo.last_data_added != null} · +{formatBytes(repo.last_data_added)}{/if}
 													</span>
+													{#if status.unchangedAt}
+														<span class="faint" title={formatDate(status.unchangedAt)}>última revisión {formatRelative(status.unchangedAt, now)} · sin cambios</span>
+													{/if}
 												{:else}
 													<span class="faint">sin copias</span>
 												{/if}

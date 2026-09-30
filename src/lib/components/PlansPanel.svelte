@@ -22,7 +22,9 @@
 							<strong>{p.name}</strong>
 							{#each p.tags ?? [] as t}<span class="tag">{t}</span>{/each}
 						</div>
-						<span class="faint when">{p.schedule ? planScheduleLabel(p.schedule) : 'Solo a mano'}</span>
+						<span class="faint when"
+							>{p.schedule ? planScheduleLabel(p.schedule) : 'Solo a mano'}{#if p.skip_unchanged} · Solo guarda si hay cambios{/if}</span
+						>
 					</div>
 					<div class="state">
 						{#if p.last_run}
@@ -31,7 +33,7 @@
 								{#if run.result === 'ok'}<CircleCheck size={13} />{:else if run.result === 'warning'}<TriangleAlert
 										size={13}
 									/>{:else}<CircleAlert size={13} />{/if}
-								{formatRelative(run.finished ?? run.started, now)}
+								{formatRelative(run.finished ?? run.started, now)}{#if run.result !== 'error' && run.unchanged} · sin cambios{/if}
 							</span>
 							{#if run.result !== 'ok' && run.message}<span class="msg">{run.message}</span>{/if}
 						{:else}

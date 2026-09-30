@@ -4,6 +4,12 @@
 -- ("until" null = hasta que se reanude a mano; las versiones antiguas no lo
 -- envían = sin pausa). Mientras dura la pausa no se avisa de retrasos, y al
 -- terminar el plazo vuelve a contar desde el fin de la pausa.
+--
+-- «Solo guardar si hay cambios» (restic --skip-if-unchanged): una copia que
+-- sale bien sin cambios no crea versión y llega con "unchanged": true. Los
+-- planes informan "skip_unchanged". El retraso se cuenta desde la última
+-- revisión correcta (versión o copia ok/warning), no solo desde la última
+-- versión, para no avisar de noches y domingos sin actividad.
 
 alter table public.repos
   add column paused boolean not null default false,
@@ -30,6 +36,73 @@ end;
 $$;
 
 revoke all on function public.try_pause_until(text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Copias sin cambios
+-- ---------------------------------------------------------------------------
+
+-- Historial: la copia salió bien pero no había nada nuevo que guardar.
+alter table public.runs add column unchanged boolean not null default false;
+
+-- Última ejecución de una tarea (la de 20260929060000_mantenimiento.sql) con
+-- "unchanged", solo si es un booleano.
+create or replace function public.clean_task_run(p jsonb)
+returns jsonb language sql stable set search_path = '' as $$
+  select case when jsonb_typeof(p) <> 'object' or public.try_ts(p ->> 'started') is null then null
+  else jsonb_build_object(
+    'started', public.try_ts(p ->> 'started'),
+    'finished', public.try_ts(p ->> 'finished'),
+    'result', case when p ->> 'result' in ('ok', 'warning', 'error') then p ->> 'result' else 'error' end,
+    'message', left(p ->> 'message', 500),
+    'files_new', public.try_bigint(p ->> 'files_new')
+  ) || case when jsonb_typeof(p -> 'unchanged') = 'boolean'
+    then jsonb_build_object('unchanged', p -> 'unchanged') else '{}'::jsonb end
+  end;
+$$;
+
+-- Lista de planes (la de 20260929070000_planes.sql) con "skip_unchanged",
+-- solo si es un booleano.
+create or replace function public.clean_plans(p jsonb)
+returns jsonb language sql stable set search_path = '' as $$
+  select case when jsonb_typeof(p) <> 'array' then null
+  else coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', left(coalesce(x ->> 'id', ''), 40),
+      'name', left(coalesce(x ->> 'name', 'Plan'), 60),
+      'tags', coalesce((
+        select jsonb_agg(left(t, 40)) from (
+          select t from jsonb_array_elements_text(
+            case when jsonb_typeof(x -> 'tags') = 'array' then x -> 'tags' else '[]'::jsonb end
+          ) as t limit 10
+        ) tt
+      ), '[]'::jsonb),
+      'schedule', public.clean_plan_schedule(x -> 'schedule'),
+      'last_run', public.clean_task_run(x -> 'last_run')
+    ) || case when jsonb_typeof(x -> 'skip_unchanged') = 'boolean'
+      then jsonb_build_object('skip_unchanged', x -> 'skip_unchanged') else '{}'::jsonb end)
+    from (select value as x from jsonb_array_elements(p) limit 20) items
+    where jsonb_typeof(x) = 'object'
+  ), '[]'::jsonb) end;
+$$;
+
+-- Última revisión correcta de un destino: la última versión o el final de la
+-- última copia ok/warning (del repositorio o de cualquiera de sus planes),
+-- lo más reciente. Con datos raros, se ignoran (try_ts).
+create or replace function public.last_ok_at(p_snapshot timestamptz, p_run jsonb, p_plans jsonb)
+returns timestamptz language sql stable set search_path = '' as $$
+  select greatest(
+    p_snapshot,
+    case when jsonb_typeof(p_run) = 'object' and p_run ->> 'result' in ('ok', 'warning')
+      then public.try_ts(p_run ->> 'finished') end,
+    (select max(public.try_ts(x -> 'last_run' ->> 'finished'))
+     from jsonb_array_elements(case when jsonb_typeof(p_plans) = 'array' then p_plans else '[]'::jsonb end) as e(x)
+     where jsonb_typeof(x -> 'last_run') = 'object' and x -> 'last_run' ->> 'result' in ('ok', 'warning'))
+  );
+$$;
+
+revoke all on function public.clean_task_run(jsonb) from public, anon, authenticated;
+revoke all on function public.clean_plans(jsonb) from public, anon, authenticated;
+revoke all on function public.last_ok_at(timestamptz, jsonb, jsonb) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Informe del equipo: la de 20260929090000_historial.sql, con la pausa.
@@ -104,7 +177,8 @@ begin
           'data_added', public.try_bigint(v_run ->> 'data_added'),
           'files_new', public.try_bigint(v_run ->> 'files_new'),
           'files_changed', public.try_bigint(v_run ->> 'files_changed')
-        );
+        ) || case when jsonb_typeof(v_run -> 'unchanged') = 'boolean'
+          then jsonb_build_object('unchanged', v_run -> 'unchanged') else '{}'::jsonb end;
       end if;
 
       -- Pausa de las copias automáticas: {"since": fecha, "until": fecha | null}.
@@ -204,7 +278,7 @@ begin
       if v_started is not null and v_started between now() - interval '30 days' and now() + interval '1 day' then
         insert into public.runs (
           device_id, repo_id, owner, started_at, finished_at, result, message,
-          data_added, files_new, files_changed
+          data_added, files_new, files_changed, unchanged
         )
         values (
           p_device,
@@ -216,7 +290,8 @@ begin
           v_run ->> 'message',
           public.try_bigint(v_run ->> 'data_added'),
           public.try_bigint(v_run ->> 'files_new'),
-          public.try_bigint(v_run ->> 'files_changed')
+          public.try_bigint(v_run ->> 'files_changed'),
+          coalesce(v_run ->> 'unchanged' = 'true', false)
         )
         on conflict (device_id, repo_id, started_at) do nothing;
       end if;
@@ -301,8 +376,9 @@ revoke all on function public.device_report(uuid, text, jsonb) from public;
 grant execute on function public.device_report(uuid, text, jsonb) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- Avisos: la de 20260929060000_mantenimiento.sql, sin retrasos en pausa y con
--- margen al reanudar (el plazo cuenta desde el fin de la pausa).
+-- Avisos: la de 20260929060000_mantenimiento.sql, sin retrasos en pausa, con
+-- margen al reanudar (el plazo cuenta desde el fin de la pausa) y contando
+-- las copias sin cambios como revisiones al día.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.current_alerts()
@@ -325,7 +401,8 @@ as $$
         end,
         24
       ), 1), 8760) as expected,
-      coalesce(r.last_snapshot_at, public.try_ts(r.last_run ->> 'finished')) as last_at,
+      -- Última revisión correcta (versión o copia sin cambios), no solo la última versión.
+      public.last_ok_at(r.last_snapshot_at, r.last_run, r.plans) as last_at,
       r.last_run ->> 'result' as last_result,
       r.last_run ->> 'message' as last_message,
       -- En pausa ahora: sin fecha de fin o con la fecha aún por llegar.

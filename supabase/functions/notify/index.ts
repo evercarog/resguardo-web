@@ -189,13 +189,24 @@ async function weeklySummary(
 			.select('snapshot_id', { count: 'exact', head: true })
 			.eq('owner', owner)
 			.gte('time', since);
+		// Copias con «Solo guardar si hay cambios» que no encontraron nada nuevo:
+		// no crean versión, pero la copia se hizo. Si falla la consulta, no se mencionan.
+		const { count: unchanged } = await admin
+			.from('runs')
+			.select('id', { count: 'exact', head: true })
+			.eq('owner', owner)
+			.eq('unchanged', true)
+			.gte('started_at', since);
 		const parts = [`${ok} al día`];
 		if (late) parts.push(`${late} con retraso`);
 		if (failed) parts.push(`${failed} con fallos`);
 		if (onPause) parts.push(`${onPause} en pausa`);
 		sent += await sendTo(admin, owner, {
 			title: failed || late ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
-			body: `${count ?? 0} copias en los últimos 7 días · destinos: ${parts.join(', ')}.`,
+			body:
+				`${count ?? 0} copias en los últimos 7 días` +
+				(unchanged ? ` (y ${unchanged} ${unchanged === 1 ? 'revisión' : 'revisiones'} sin cambios)` : '') +
+				` · destinos: ${parts.join(', ')}.`,
 			url: '/',
 			tag: 'resumen-semanal'
 		});

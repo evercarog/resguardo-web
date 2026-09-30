@@ -12,7 +12,16 @@
 	// (se imprime o se guarda como PDF desde el navegador).
 
 	type SnapRow = { device_id: string; repo_id: string; time: string; data_added: number | null; duration_s: number | null };
-	type RunRow = { device_id: string; repo_id: string; started_at: string; result: string; message: string | null };
+	type RunRow = {
+		device_id: string;
+		repo_id: string;
+		started_at: string;
+		finished_at: string | null;
+		result: string;
+		message: string | null;
+		/** Salió bien sin cambios (no existe antes de la migración 20260930010000). */
+		unchanged?: boolean;
+	};
 
 	const pad = (n: number) => String(n).padStart(2, '0');
 	const today = new Date();
@@ -82,7 +91,8 @@
 				pages<RunRow>((a, z) =>
 					supabase
 						.from('runs')
-						.select('device_id, repo_id, started_at, result, message')
+						// Todas las columnas: así funciona también antes de la migración que añade "unchanged".
+						.select('*')
 						.in('device_id', ids)
 						.gte('started_at', from)
 						.lt('started_at', to)
@@ -122,7 +132,14 @@
 				.filter((r) => r.device_id === d.id)
 				.map((r: Repo) => {
 					const mine = snaps.filter((s) => s.device_id === d.id && s.repo_id === r.repo_id);
-					const days = new Set(mine.map((s) => dayKey(s.time))).size;
+					// Un día con una copia correcta sin cambios («Solo guardar si hay cambios») también cuenta:
+					// la copia se hizo, solo que no había nada nuevo que guardar.
+					const same = runs.filter(
+						(x) => x.device_id === d.id && x.repo_id === r.repo_id && x.unchanged === true && x.result !== 'error'
+					);
+					const snapDays = new Set(mine.map((s) => dayKey(s.time)));
+					const sameDays = new Set(same.map((x) => dayKey(x.finished_at ?? x.started_at)).filter((k) => !snapDays.has(k)));
+					const days = snapDays.size + sameDays.size;
 					const failed = runs.filter((x) => x.device_id === d.id && x.repo_id === r.repo_id && x.result === 'error');
 					const added = mine.reduce((n, s) => n + (s.data_added ?? 0), 0);
 					const durations = mine.filter((s) => s.duration_s != null);
@@ -132,6 +149,7 @@
 						repo: r,
 						versions: mine.length,
 						days,
+						sameDays: sameDays.size,
 						coverage: Math.round((days / daysElapsed) * 100),
 						failed: failed.length,
 						lastError: failed.map((x) => x.message).filter(Boolean).at(-1) ?? null,
@@ -243,7 +261,11 @@
 										<td><strong>{r.repo.name}</strong><span class="faint small">{kindLabel(r.repo.kind)}</span></td>
 										<td class="small">{repoScheduleLabel(r.repo)}</td>
 										<td class="num">{r.versions}</td>
-										<td class="num">{r.days}/{daysElapsed} <span class="faint">({r.coverage} %)</span></td>
+										<td class="num"
+											>{r.days}/{daysElapsed} <span class="faint">({r.coverage} %)</span>{#if r.sameDays}<span class="faint small sub"
+													>{r.sameDays} sin cambios</span
+												>{/if}</td
+										>
 										<td class="num" class:bad={r.failed > 0}>{r.failed}</td>
 										<td class="num">{formatBytes(r.added)}</td>
 										<td class="small">{r.last ? formatDate(r.last) : '—'}{#if r.avg != null}<span class="faint"> · {formatDuration(r.avg)}</span>{/if}</td>
@@ -417,6 +439,9 @@
 	}
 	.small {
 		font-size: 12px;
+	}
+	.sub {
+		display: block;
 	}
 	.num {
 		text-align: right;
