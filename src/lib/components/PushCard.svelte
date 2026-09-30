@@ -33,6 +33,17 @@
 	import { disablePush, enablePush, isIos, pushState, testPush, PushError } from '$lib/push';
 	import { auth } from '$lib/session.svelte';
 
+	/** Cómo llamar a este dispositivo en los textos. */
+	function deviceWord() {
+		const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+		if (nav.userAgentData?.mobile === true) return 'celular';
+		const ua = navigator.userAgent;
+		if (/iPad|Tablet/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'dispositivo';
+		if (/iPhone|iPod|Android.*Mobile|Mobile/i.test(ua)) return 'celular';
+		return 'computador';
+	}
+	const device = deviceWord();
+
 	/** 'top': invitación tras los contadores. 'bottom': versión compacta al final. */
 	let { placement }: { placement: 'top' | 'bottom' } = $props();
 
@@ -85,7 +96,7 @@
 				<strong>Avisos activados en este dispositivo</strong>
 				<span class="faint">Te avisamos si una copia falla, se atrasa o un equipo deja de conectarse, y cuando se recupera.</span>
 			{:else if shared.ps === 'off'}
-				<strong>Recibe avisos en este celular</strong>
+				<strong>Recibe avisos en este {device}</strong>
 				<span class="faint">Cuando una copia falle, se atrase o un equipo deje de conectarse.</span>
 			{:else if shared.ps === 'denied'}
 				<strong>Las notificaciones están bloqueadas</strong>
