@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { ArrowLeft, CalendarDays, CircleAlert, LoaderCircle, Monitor, X } from '@lucide/svelte';
+	import { ArrowLeft, CalendarDays, CircleAlert, CirclePause, LoaderCircle, Monitor, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
-	import { kindLabel, repoScheduleLabel, repoStatus, runningSince } from '$lib/status';
+	import { kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
 
@@ -115,6 +115,17 @@
 			</div>
 			{#if status}<span class="badge lvl-{status.level}">{status.label}</span>{/if}
 		</header>
+
+		{#if status?.pause.active}
+			<div class="notice paused" role="status">
+				<CirclePause size={16} />
+				<p>
+					<strong>Copias automáticas en pausa</strong>
+					{pauseUntilLabel(status.pause.until)}{#if status.pause.since}<span class="faint"> · desde el {formatDate(status.pause.since)}</span>{/if}.
+					Mientras tanto no se avisa de retrasos. Puedes reanudarlas desde Resguardo, en el equipo.
+				</p>
+			</div>
+		{/if}
 
 		{#if running}
 			<div class="notice notice-info running" role="status">
@@ -274,6 +285,14 @@
 	.lvl-overdue,
 	.lvl-failed {
 		--lvl: var(--danger);
+	}
+	/* En pausa: estado neutro, ni error ni aviso. */
+	.lvl-paused {
+		--lvl: var(--text-3);
+	}
+	.paused {
+		background: var(--surface-3);
+		color: var(--text-2);
 	}
 	.stats {
 		display: grid;

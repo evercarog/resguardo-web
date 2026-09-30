@@ -4,6 +4,7 @@
 		CircleAlert,
 		CircleCheck,
 		CircleDashed,
+		CirclePause,
 		Clock,
 		LoaderCircle,
 		Monitor,
@@ -19,7 +20,17 @@
 	import PushCard from '$lib/components/PushCard.svelte';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration, formatRelative, formatTime } from '$lib/format';
-	import { LEVEL_ORDER, deviceOnline, elapsedLabel, kindLabel, repoScheduleLabel, repoStatus, runningSince, type Level } from '$lib/status';
+	import {
+		LEVEL_ORDER,
+		deviceOnline,
+		elapsedLabel,
+		kindLabel,
+		pauseUntilLabel,
+		repoScheduleLabel,
+		repoStatus,
+		runningSince,
+		type Level
+	} from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device } from '$lib/types';
 
@@ -55,7 +66,9 @@
 	);
 	const count = (levels: Level[]) => repoRows.filter((r) => levels.includes(r.status.level)).length;
 	const offline = $derived(db.devices.filter((d) => !d.revoked_at && !deviceOnline(d, now)).length);
+	// Los destinos en pausa no cuentan como atrasados.
 	const attention = $derived(count(['failed', 'overdue', 'late']) + offline);
+	const paused = $derived(count(['paused']));
 	const updated = $derived(db.updatedAt ? `actualizado ${formatRelative(db.updatedAt, now)}` : '');
 
 	/** Equipos agrupados por cliente; lo que necesita atención, primero. */
@@ -63,14 +76,14 @@
 		const byClient = new Map<string | null, Device[]>();
 		for (const d of db.devices) byClient.set(d.client_id, [...(byClient.get(d.client_id) ?? []), d]);
 		const worst = (d: Device) =>
-			Math.min(5, ...repoRows.filter((r) => r.repo.device_id === d.id).map((r) => LEVEL_ORDER[r.status.level])) -
+			Math.min(6, ...repoRows.filter((r) => r.repo.device_id === d.id).map((r) => LEVEL_ORDER[r.status.level])) -
 			(deviceOnline(d, now) ? 0 : 10);
 		const out = [...byClient.entries()].map(([clientId, devices]) => {
 			const sorted = devices.sort((a, b) => worst(a) - worst(b) || a.name.localeCompare(b.name));
 			return {
 				client: db.clients.find((c) => c.id === clientId) ?? null,
 				devices: sorted,
-				worst: sorted.length ? worst(sorted[0]) : 5
+				worst: sorted.length ? worst(sorted[0]) : 6
 			};
 		});
 		// Clientes con el equipo en peor estado, primero; a igualdad, por nombre ("Sin cliente" al final).
@@ -96,7 +109,7 @@
 			.reduce<string | null>((max, v) => (!max || versionLess(max, v) ? v : max), null)
 	);
 
-	const ICON = { ok: CircleCheck, late: Clock, overdue: TriangleAlert, failed: XCircle, empty: CircleDashed };
+	const ICON = { ok: CircleCheck, late: Clock, overdue: TriangleAlert, failed: XCircle, empty: CircleDashed, paused: CirclePause };
 
 	async function moveDevice(d: Device, clientId: string) {
 		menu = null;
@@ -170,7 +183,7 @@
 
 	{#if db.loaded && db.devices.length}
 		<div class="counts">
-			<div class="count ok"><CircleCheck size={18} /><strong>{count(['ok'])}</strong><span>Al día</span></div>
+			<div class="count ok"><CircleCheck size={18} /><strong>{count(['ok'])}</strong><span>Al día{paused ? ` · ${paused} en pausa` : ''}</span></div>
 			<div class="count late"><Clock size={18} /><strong>{count(['late'])}</strong><span>Con retraso</span></div>
 			<div class="count bad"><TriangleAlert size={18} /><strong>{count(['overdue', 'failed'])}</strong><span>Atrasadas o fallidas</span></div>
 			<div class="count off"><WifiOff size={18} /><strong>{offline}</strong><span>Equipos sin conexión</span></div>
@@ -280,6 +293,9 @@
 												<p class="err">{repo.last_run.message}</p>
 											{:else if (status.level === 'late' || status.level === 'overdue') && status.since !== null}
 												<p class="warnline">{elapsedLabel(status.since - status.expected)} de retraso</p>
+											{/if}
+											{#if status.pause.active}
+												<p class="pauseline"><CirclePause size={13} /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
 											{/if}
 										</li>
 									{/each}
@@ -619,6 +635,10 @@
 	.lvl-failed {
 		--lvl: var(--danger);
 	}
+	/* En pausa: estado neutro, ni error ni aviso. */
+	.lvl-paused {
+		--lvl: var(--text-3);
+	}
 	.badge {
 		display: inline-flex;
 		align-items: center;
@@ -658,6 +678,7 @@
 	}
 	.err,
 	.warnline,
+	.pauseline,
 	.runline {
 		grid-column: 1 / -1;
 		margin: 0;
@@ -669,6 +690,12 @@
 	.warnline {
 		color: var(--lvl);
 		font-weight: 600;
+	}
+	.pauseline {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--text-2);
 	}
 	.runline {
 		display: flex;

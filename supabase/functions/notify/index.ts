@@ -174,13 +174,16 @@ async function weeklySummary(
 	// Semana: la fecha del lunes (así se envía una sola vez).
 	const week = `summary:${bogota.toISOString().slice(0, 10)}`;
 	const since = new Date(now.getTime() - 7 * 24 * 3_600_000).toISOString();
+	const paused = await pausedByOwner(admin, now);
 	let sent = 0;
 	for (const owner of subscribed) {
 		if (states.some((s) => s.owner === owner && s.alert_key === week)) continue;
+		// Los destinos en pausa no están en los avisos (salvo si fallaron): no cuentan como al día ni con retraso.
 		const mine = alerts.filter((a) => a.owner === owner && a.alert_key.startsWith('repo:'));
 		const late = mine.filter((a) => a.level === 'late' || a.level === 'overdue').length;
 		const failed = mine.filter((a) => a.level === 'failed').length;
 		const ok = mine.length - late - failed;
+		const onPause = paused.get(owner) ?? 0;
 		const { count } = await admin
 			.from('snapshots')
 			.select('snapshot_id', { count: 'exact', head: true })
@@ -189,6 +192,7 @@ async function weeklySummary(
 		const parts = [`${ok} al día`];
 		if (late) parts.push(`${late} con retraso`);
 		if (failed) parts.push(`${failed} con fallos`);
+		if (onPause) parts.push(`${onPause} en pausa`);
 		sent += await sendTo(admin, owner, {
 			title: failed || late ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
 			body: `${count ?? 0} copias en los últimos 7 días · destinos: ${parts.join(', ')}.`,
@@ -200,4 +204,29 @@ async function weeklySummary(
 		await admin.from('alert_state').upsert({ owner, alert_key: week, level: 'ok', notified_at: now.toISOString() });
 	}
 	return sent;
+}
+
+/**
+ * Destinos en pausa ahora (sin fecha de fin o con la fecha por llegar) por
+ * usuario, de equipos no desvinculados. Los que fallaron ya cuentan como
+ * fallos. Si la consulta falla (p. ej. aún sin la migración de pausas), 0.
+ */
+async function pausedByOwner(admin: SupabaseClient, now: Date) {
+	const out = new Map<string, number>();
+	const [{ data: repos, error: e1 }, { data: revoked, error: e2 }] = await Promise.all([
+		admin.from('repos').select('owner, device_id, paused_until, last_run').eq('paused', true),
+		admin.from('devices').select('id').not('revoked_at', 'is', null)
+	]);
+	if (e1 || e2) {
+		console.error('notify: pausas', (e1 ?? e2)!.message);
+		return out;
+	}
+	const gone = new Set((revoked ?? []).map((d) => d.id as string));
+	for (const r of repos ?? []) {
+		if (gone.has(r.device_id)) continue;
+		if (r.paused_until && new Date(r.paused_until).getTime() <= now.getTime()) continue;
+		if ((r.last_run as { result?: string } | null)?.result === 'error') continue;
+		out.set(r.owner, (out.get(r.owner) ?? 0) + 1);
+	}
+	return out;
 }

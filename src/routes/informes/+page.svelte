@@ -4,7 +4,7 @@
 	import Logo from '$lib/components/Logo.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration } from '$lib/format';
-	import { kindLabel, repoScheduleLabel, repoStatus } from '$lib/status';
+	import { kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device, Repo } from '$lib/types';
 
@@ -154,7 +154,7 @@
 		coverage: all.length ? Math.round(all.reduce((n, r) => n + r.coverage, 0) / all.length) : 0
 	});
 	const verdict = $derived(
-		totals.failed === 0 && all.every((r) => r.status.level === 'ok' || r.status.level === 'empty')
+		totals.failed === 0 && all.every((r) => r.status.level === 'ok' || r.status.level === 'empty' || r.status.level === 'paused')
 			? { kind: 'ok', text: 'Todas las copias funcionan con normalidad.' }
 			: all.some((r) => r.status.level === 'failed' || r.status.level === 'overdue')
 				? { kind: 'bad', text: 'Hay copias que necesitan atención.' }
@@ -251,6 +251,9 @@
 									</tr>
 									{#if r.lastError}
 										<tr class="errrow"><td colspan="8">Último error: {r.lastError}</td></tr>
+									{/if}
+									{#if r.status.pause.active}
+										<tr class="noterow"><td colspan="8">Copias automáticas en pausa {pauseUntilLabel(r.status.pause.until)}{#if r.status.pause.since} (desde el {formatDate(r.status.pause.since)}){/if}.</td></tr>
 									{/if}
 								{/each}
 							</tbody>
@@ -425,6 +428,11 @@
 		color: var(--danger);
 		font-size: 12px;
 	}
+	.noterow td {
+		padding-top: 0;
+		color: var(--text-2);
+		font-size: 12px;
+	}
 	.badge {
 		display: inline-block;
 		white-space: nowrap;
@@ -445,6 +453,9 @@
 	.lvl-overdue,
 	.lvl-failed {
 		--lvl: var(--danger);
+	}
+	.lvl-paused {
+		--lvl: var(--text-3);
 	}
 	.rfoot {
 		font-size: 11.5px;

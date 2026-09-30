@@ -56,6 +56,13 @@ export interface Repo {
 	task_running: TaskRunning | null;
 	/** Planes de copia (versiones con planes; en ese caso `schedule` va vacío). */
 	plans: PlanInfo[] | null;
+	/** Copias automáticas en pausa (opcional: no existe antes de la migración de pausas). */
+	paused?: boolean;
+	paused_since?: string | null;
+	/** Fin de la pausa; null = hasta que se reanude a mano. */
+	paused_until?: string | null;
+	/** Cuándo terminó la última pausa (el retraso se cuenta desde aquí). */
+	resumed_at?: string | null;
 	updated_at: string;
 }
 

@@ -1,4 +1,5 @@
 // Estado de un repositorio y de un equipo (misma lógica que la app de escritorio).
+import { formatDate } from '$lib/format';
 import type { Device, PlanSchedule, Repo, Schedule } from '$lib/types';
 
 const HOUR = 3_600_000;
@@ -6,17 +7,18 @@ const HOUR = 3_600_000;
 /** Un equipo informa cada pocos minutos: más de 30 sin noticias = sin conexión. */
 export const OFFLINE_AFTER_MIN = 30;
 
-export type Level = 'ok' | 'late' | 'overdue' | 'failed' | 'empty';
+export type Level = 'ok' | 'late' | 'overdue' | 'failed' | 'empty' | 'paused';
 
 export const LEVEL_LABEL: Record<Level, string> = {
 	ok: 'Al día',
 	late: 'Con retraso',
 	overdue: 'Atrasada',
 	failed: 'Falló',
-	empty: 'Sin copias'
+	empty: 'Sin copias',
+	paused: 'En pausa'
 };
 
-export const LEVEL_ORDER: Record<Level, number> = { failed: 0, overdue: 1, late: 2, empty: 3, ok: 4 };
+export const LEVEL_ORDER: Record<Level, number> = { failed: 0, overdue: 1, late: 2, empty: 3, paused: 4, ok: 5 };
 
 /** Horas entre copias esperadas, según su programación. */
 export function expectedHours(repo: Repo): number {
@@ -26,17 +28,35 @@ export function expectedHours(repo: Repo): number {
 	return s.kind === 'hours' || s.kind === 'monitor' ? s.every : s.kind === 'daily' ? 24 : 168;
 }
 
+/**
+ * Pausa de las copias automáticas (misma lógica que los avisos en el servidor).
+ * - `active`: en pausa ahora (sin fecha de fin, o la fecha aún no llega).
+ * - `until`: fin previsto (null = hasta que se reanude a mano).
+ * - `resumedAt`: cuándo terminó la última pausa; el retraso se cuenta desde
+ *   ahí, así no aparece "atrasada" nada más reanudar.
+ */
+export function pauseState(repo: Repo, now = Date.now()) {
+	const until = repo.paused ? (repo.paused_until ?? null) : null;
+	const active = !!repo.paused && (!until || new Date(until).getTime() > now);
+	const ended = repo.paused ? until : (repo.resumed_at ?? null);
+	return { active, until, since: repo.paused ? (repo.paused_since ?? null) : null, resumedAt: active ? null : ended };
+}
+
 export function repoStatus(repo: Repo, now = Date.now()) {
 	const expected = expectedHours(repo);
 	const last = repo.last_snapshot_at ?? repo.last_run?.finished ?? null;
-	const since = last ? (now - new Date(last).getTime()) / HOUR : null;
+	const pause = pauseState(repo, now);
+	// Tras una pausa, el plazo empieza a contar al reanudar.
+	const from = last ? Math.max(new Date(last).getTime(), pause.resumedAt ? new Date(pause.resumedAt).getTime() : 0) : null;
+	const since = from !== null ? (now - from) / HOUR : null;
 	let level: Level;
 	if (repo.last_run?.result === 'error') level = 'failed';
+	else if (pause.active) level = 'paused';
 	else if (since === null) level = 'empty';
 	else if (since > expected * 2 + 1) level = 'overdue';
 	else if (since > expected * 1.25 + 1) level = 'late';
 	else level = 'ok';
-	return { level, label: LEVEL_LABEL[level], expected, since, last };
+	return { level, label: LEVEL_LABEL[level], expected, since, last, pause };
 }
 
 /** Copia automática en curso (se ignora si lleva más de 12 h: el equipo se apagó a mitad). */
@@ -106,6 +126,11 @@ export function repoScheduleLabel(repo: Repo) {
 	// Varios planes: sus nombres si caben; si no, solo cuántos hay.
 	const names = plans.map((p) => p.name).join(', ');
 	return names.length <= 40 ? `${plans.length} copias: ${names}` : `${plans.length} copias`;
+}
+
+/** «hasta el 3 oct 2026, 18:00» o «hasta que se reanude». */
+export function pauseUntilLabel(until: string | null) {
+	return until ? `hasta el ${formatDate(until)}` : 'hasta que se reanude';
 }
 
 export function elapsedLabel(hours: number) {
