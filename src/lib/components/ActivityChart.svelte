@@ -74,8 +74,9 @@
 		display: flex;
 		justify-content: space-between;
 		margin-bottom: 8px;
-		font-size: 12.5px;
-		font-weight: 600;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
+		font-weight: 500;
 		color: var(--text-2);
 	}
 	figcaption .faint {
@@ -87,7 +88,7 @@
 		align-items: flex-end;
 		gap: 2px;
 		height: 88px;
-		border-bottom: 1px solid var(--border-strong);
+		border-bottom: 1px solid var(--border);
 	}
 	.col {
 		flex: 1;
@@ -100,18 +101,14 @@
 	}
 	.bar {
 		width: 100%;
-		border-radius: 4px 4px 0 0;
-		background: var(--accent);
-		opacity: 0.75;
+		border-radius: 2px 2px 0 0;
+		background: color-mix(in srgb, var(--text-3) 45%, transparent);
 		transform-origin: bottom;
 		animation: grow 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 		animation-delay: calc(var(--i) * 12ms);
 	}
 	.col.on .bar {
-		opacity: 1;
-	}
-	.plot:hover .col:not(.on) .bar {
-		opacity: 0.45;
+		background: var(--accent);
 	}
 	@keyframes grow {
 		from {
@@ -125,13 +122,13 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		padding: 5px 9px;
-		font-size: 12px;
+		padding: 4px 8px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 		white-space: nowrap;
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 7px;
-		box-shadow: var(--shadow-md);
+		color: var(--bg);
+		background: var(--text-1);
+		border-radius: var(--radius-sm);
 		pointer-events: none;
 	}
 	.tip.center {
@@ -144,13 +141,13 @@
 		align-items: flex-end;
 	}
 	.tip span {
-		color: var(--text-3);
-		font-size: 11.5px;
+		opacity: 0.75;
 	}
 	.axis {
 		display: flex;
 		justify-content: space-between;
-		margin-top: 5px;
-		font-size: 11.5px;
+		margin-top: 6px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 	}
 </style>

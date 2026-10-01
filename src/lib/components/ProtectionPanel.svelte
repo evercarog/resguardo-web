@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { CircleAlert, CircleCheck, CircleQuestionMark, CircleX, KeyRound, ShieldCheck } from '@lucide/svelte';
+	import { CircleAlert, CircleCheck, CircleDashed, KeyRound, TriangleAlert } from '@lucide/svelte';
 	import ProtectionRing from '$lib/components/ProtectionRing.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import { protectionSummary } from '$lib/status';
@@ -26,11 +26,11 @@
 	<section class="card health tone-{sum.tone}" id="proteccion" aria-labelledby="proteccion-titulo">
 		<div class="summary">
 			<div class="ring-wrap">
-				<ProtectionRing protection={p} size={74} />
-				<span class="score" aria-hidden="true"><strong>{p.score}</strong><span>de {p.total}</span></span>
+				<ProtectionRing protection={p} size={64} />
+				<span class="score num" aria-hidden="true">{p.score}<span class="tot">/{p.total}</span></span>
 			</div>
 			<div class="sum-text">
-				<h2 id="proteccion-titulo"><ShieldCheck size={16} aria-hidden="true" /> Salud de la protección</h2>
+				<h2 class="section-title" id="proteccion-titulo">Salud de la protección</h2>
 				<p class="faint">
 					<span class="sr-only">{p.score} de {p.total}.</span>
 					{#if !sum.issues}
@@ -47,10 +47,10 @@
 			{#each p.items as i (i.id)}
 				<li class="item st-{i.state}">
 					<span class="ic" title={WORD[i.state]}>
-						{#if i.state === 'ok'}<CircleCheck size={17} aria-hidden="true" />{:else if i.state === 'warn'}<CircleAlert
-								size={17}
+						{#if i.state === 'ok'}<CircleCheck size={16} aria-hidden="true" />{:else if i.state === 'warn'}<TriangleAlert
+								size={16}
 								aria-hidden="true"
-							/>{:else if i.state === 'bad'}<CircleX size={17} aria-hidden="true" />{:else}<CircleQuestionMark size={17} aria-hidden="true" />{/if}
+							/>{:else if i.state === 'bad'}<CircleAlert size={16} aria-hidden="true" />{:else}<CircleDashed size={16} aria-hidden="true" />{/if}
 					</span>
 					<span class="txt">
 						<strong>{i.label}<span class="sr-only">: {WORD[i.state]}</span></strong>
@@ -70,107 +70,95 @@
 	.health {
 		display: flex;
 		flex-direction: column;
-		gap: 14px;
-		padding: 18px 20px;
-		scroll-margin-top: calc(var(--header-h, 60px) + 16px);
+		gap: var(--sp-4);
+		padding: var(--sp-5);
+		scroll-margin-top: calc(var(--header-h, 56px) + 16px);
 	}
 	.summary {
 		display: flex;
 		align-items: center;
-		gap: 16px;
+		gap: var(--sp-4);
 	}
 	.ring-wrap {
 		position: relative;
 		display: grid;
-		place-items: center;
 		flex: none;
+		place-items: center;
 	}
 	.score {
 		position: absolute;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		line-height: 1;
+		font-size: var(--fs-h2);
+		line-height: var(--lh-h2);
+		font-weight: 600;
 	}
-	.score strong {
-		font-family: var(--font-display);
-		font-size: 22px;
-	}
-	.score span {
-		font-size: 11px;
+	.score .tot {
+		margin-left: 2px;
+		font-weight: 400;
 		color: var(--text-3);
 	}
 	.sum-text {
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: 2px;
 		min-width: 0;
 	}
-	h2 {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		font-size: 16px;
-		font-weight: 650;
-	}
 	.sum-text p {
-		margin: 0;
-		font-size: 13px;
-		line-height: 1.5;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 	.items {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
-		gap: 6px;
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+		gap: var(--sp-2);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 	.item {
 		display: flex;
-		align-items: center;
-		gap: 10px;
+		align-items: flex-start;
+		gap: var(--sp-3);
 		min-width: 0;
-		padding: 9px 10px 9px 12px;
+		padding: var(--sp-3);
 		background: var(--surface-2);
-		border: 1px solid var(--border);
 		border-radius: var(--radius);
 	}
 	.ic {
 		display: grid;
 		flex: none;
+		padding-top: 2px;
 	}
 	.st-ok .ic {
-		color: var(--success);
+		color: var(--ok);
 	}
 	.st-warn .ic {
 		color: var(--warn);
 	}
 	.st-bad .ic {
-		color: var(--danger);
+		color: var(--bad);
 	}
 	.st-unknown .ic {
-		color: var(--text-3);
+		color: var(--neutral);
 	}
 	.txt {
 		display: flex;
 		flex-direction: column;
+		gap: 2px;
 		min-width: 0;
-		font-size: 13px;
-		line-height: 1.4;
 	}
 	.txt strong {
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.txt .faint {
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 		overflow-wrap: anywhere;
 	}
 	.kit {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		margin: 0;
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 </style>

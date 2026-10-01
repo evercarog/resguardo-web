@@ -24,11 +24,11 @@
 {/snippet}
 
 {#if m?.verify || m?.offsite || m?.restore_test}
-	<section class="card maint">
-		<h2>Mantenimiento</h2>
+	<section class="card panel maint" aria-labelledby="t-maint">
+		<div class="panel-head"><h2 class="section-title" id="t-maint">Mantenimiento</h2></div>
 		<div class="rows">
 			<div class="row" class:off={!m?.verify}>
-				<span class="ic"><ShieldCheck size={16} /></span>
+				<span class="ic" aria-hidden="true"><ShieldCheck size={16} /></span>
 				<div class="what">
 					<strong>Verificación</strong>
 					<span class="faint">
@@ -42,7 +42,7 @@
 				</div>
 				<div class="state">
 					{#if running?.kind === 'verify'}
-						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Verificando…'}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
+						<span class="live"><span class="spin"><LoaderCircle size={14} /></span>{running.stage || 'Verificando…'}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
 					{:else if m?.verify}
 						{@render result(repo.verify_run)}
 					{/if}
@@ -50,7 +50,7 @@
 			</div>
 
 			<div class="row" class:off={!m?.restore_test}>
-				<span class="ic"><ArchiveRestore size={16} /></span>
+				<span class="ic" aria-hidden="true"><ArchiveRestore size={16} /></span>
 				<div class="what">
 					<strong>Prueba de restauración</strong>
 					<span class="faint">
@@ -64,7 +64,7 @@
 				<div class="state">
 					{#if running?.kind === 'restore_test'}
 						<span class="live"
-							><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Restaurando archivos de prueba…'}{progress?.percent != null
+							><span class="spin"><LoaderCircle size={14} /></span>{running.stage || 'Restaurando archivos de prueba…'}{progress?.percent != null
 								? ` · ${Math.floor(progress.percent)} %`
 								: ''}</span
 						>
@@ -75,7 +75,7 @@
 			</div>
 
 			<div class="row" class:off={!m?.offsite}>
-				<span class="ic"><CloudUpload size={16} /></span>
+				<span class="ic" aria-hidden="true"><CloudUpload size={16} /></span>
 				<div class="what">
 					<strong>Copia externa</strong>
 					<span class="faint">
@@ -97,7 +97,7 @@
 				</div>
 				<div class="state">
 					{#if running?.kind === 'offsite' || running?.kind === 'verify_offsite'}
-						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || (running.kind === 'offsite' ? 'Subiendo…' : 'Verificando la nube…')}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
+						<span class="live"><span class="spin"><LoaderCircle size={14} /></span>{running.stage || (running.kind === 'offsite' ? 'Subiendo…' : 'Verificando la nube…')}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
 					{:else if m?.offsite}
 						{@render result(repo.offsite_run)}
 					{/if}
@@ -108,15 +108,13 @@
 {/if}
 
 <style>
-	.maint {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		padding: 18px 20px;
+	/* Panel de filas (diseño común): cabecera de sección y filas de 44 px con separador. */
+	.panel {
+		padding: 0;
+		overflow: hidden;
 	}
-	h2 {
-		font-size: 16px;
-		font-weight: 650;
+	.panel-head {
+		padding: var(--sp-5) var(--sp-5) var(--sp-3);
 	}
 	.rows {
 		display: flex;
@@ -124,44 +122,35 @@
 	}
 	.row {
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.1fr);
-		align-items: center;
-		gap: 12px;
-		padding: 10px 0;
+		grid-template-columns: 16px minmax(0, 1fr) minmax(0, auto);
+		align-items: start;
+		gap: var(--sp-3);
+		min-height: 44px;
+		padding: var(--sp-3) var(--sp-5);
 		border-top: 1px solid var(--border);
-	}
-	.row:first-child {
-		border-top: none;
-		padding-top: 0;
-	}
-	.row.off .ic {
-		color: var(--text-3);
-		background: var(--surface-3);
 	}
 	.ic {
 		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		border-radius: 9px;
-		color: var(--accent-soft-text, var(--accent));
-		background: var(--accent-soft, var(--surface-3));
+		padding-top: 2px;
+		color: var(--text-2);
+	}
+	.row.off .ic,
+	.row.off strong {
+		color: var(--text-3);
 	}
 	.what {
 		display: flex;
 		flex-direction: column;
-		gap: 1px;
+		gap: 2px;
 		min-width: 0;
-		font-size: 13.5px;
+	}
+	.what strong {
+		font-weight: 500;
 	}
 	.what .faint {
-		font-size: 12px;
-	}
-	.cv {
-		margin-top: 3px;
-	}
-	.cv.bad {
-		color: var(--danger);
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		overflow-wrap: anywhere;
 	}
 	.state {
 		display: flex;
@@ -169,48 +158,40 @@
 		align-items: flex-end;
 		gap: 2px;
 		min-width: 0;
-		font-size: 12.5px;
+		padding-top: 1px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 		text-align: right;
 	}
 	.msg {
-		font-size: 11.5px;
+		max-width: 320px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 		color: var(--text-2);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
+		overflow-wrap: anywhere;
 	}
 	.live {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		color: var(--accent);
-		font-weight: 600;
-	}
-	.spin {
-		display: grid;
-		animation: spin 1s linear infinite;
-	}
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.spin {
-			animation: none;
-		}
+		font-weight: 500;
+		color: var(--info);
 	}
 	@media (max-width: 640px) {
 		.row {
-			grid-template-columns: auto minmax(0, 1fr);
+			grid-template-columns: 16px minmax(0, 1fr);
 		}
 		.state {
 			grid-column: 2;
 			align-items: flex-start;
 			text-align: left;
 		}
+	}
+
+	.cv {
+		margin-top: 2px;
+	}
+	.cv.bad {
+		color: var(--bad);
 	}
 </style>
