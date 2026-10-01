@@ -134,6 +134,30 @@ export function verifyModeLabel(v: VerifyConfig, now = Date.now()) {
 	return v.subset_percent ? `lee el ${v.subset_percent} % de los datos` : 'solo la estructura';
 }
 
+/**
+ * Verificación de la copia en la nube, en una línea: «Verificación de la nube:
+ * hace 2 días, sin errores · los domingos, 05:00 · solo la estructura». Null
+ * si no está programada.
+ */
+export function offsiteVerifySummary(repo: Repo, now = Date.now()) {
+	const v = repo.maintenance?.offsite?.verify;
+	if (!v) return null;
+	const run = repo.offsite_verify_run ?? null;
+	const res = run
+		? `${formatRelative(run.finished ?? run.started, now)}, ${run.result === 'ok' ? 'sin errores' : run.result === 'warning' ? 'con avisos' : 'falló'}`
+		: 'todavía ninguna';
+	const rotating = (v.rotate_parts ?? 0) >= 2;
+	const parts = [`Verificación de la nube: ${res}`, v.schedule ? scheduleLabel(v.schedule) : 'programada'];
+	if (!rotating) parts.push(verifyModeLabel(v, now));
+	return {
+		text: parts.join(' · '),
+		/** Línea aparte para la rotativa (es larga). */
+		rotation: rotating ? verifyModeLabel(v, now) : null,
+		result: run?.result ?? null,
+		message: run?.result === 'error' ? run.message : null
+	};
+}
+
 /** Horario de la copia externa (también «después de cada copia con cambios»). */
 export function offsiteScheduleLabel(s: OffsiteSchedule | null) {
 	if (s?.kind === 'after_backup') {
@@ -194,7 +218,8 @@ export function taskProgress(repo: Repo, now = Date.now()) {
 	if (!t) return null;
 	const off = repo.maintenance?.offsite;
 	const target = off?.target_name ?? (off ? `${repo.name} · ${OFFSITE_PROVIDERS[off.provider] ?? 'copia externa'}` : 'la copia externa');
-	const title = t.kind === 'verify' ? `Verificando «${repo.name}»` : `Subiendo a «${target}»`;
+	const title =
+		t.kind === 'verify' ? `Verificando «${repo.name}»` : t.kind === 'verify_offsite' ? `Verificando la copia en «${target}»` : `Subiendo a «${target}»`;
 	const hasTotal = num(t.total) && t.total > 0;
 	const hasBytes = num(t.bytes_total) && t.bytes_total > 0 && num(t.bytes_done);
 	// El equipo envía el porcentaje como fracción (0 a 1).
@@ -209,7 +234,7 @@ export function taskProgress(repo: Repo, now = Date.now()) {
 	if (percent !== null) parts.push(`${Math.floor(percent)} %`);
 	if (num(t.eta_s) && t.eta_s > 0) parts.push(`quedan ~${elapsedLabel(t.eta_s / 3600)}`);
 	// Sin progreso medible: la etapa y cuánto lleva.
-	if (!parts.length) parts.push(t.stage || (t.kind === 'verify' ? 'Verificando…' : 'Subiendo…'), `desde hace ${elapsedLabel((now - new Date(t.started).getTime()) / HOUR)}`);
+	if (!parts.length) parts.push(t.stage || (t.kind === 'offsite' ? 'Subiendo…' : 'Verificando…'), `desde hace ${elapsedLabel((now - new Date(t.started).getTime()) / HOUR)}`);
 	return { task: t, title, detail: parts.join(' · '), percent };
 }
 

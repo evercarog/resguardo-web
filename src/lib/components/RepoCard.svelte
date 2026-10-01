@@ -41,6 +41,7 @@
 		kindLabel,
 		nextExpected,
 		offsiteScheduleLabel,
+		offsiteVerifySummary,
 		pauseUntilLabel,
 		planScheduleLabel,
 		repoScheduleLabel,
@@ -70,6 +71,7 @@
 	const next = $derived(status.pause.active ? null : nextExpected(repo, now));
 	const off = $derived(repo.maintenance?.offsite ?? null);
 	const verify = $derived(repo.maintenance?.verify ?? null);
+	const cloudVerify = $derived(offsiteVerifySummary(repo, now));
 	const target = $derived(off ? (off.target_name ?? OFFSITE_PROVIDERS[off.provider] ?? 'Otra ubicación') : '');
 
 	/** ¿La nube tiene ya la última versión local? */
@@ -211,7 +213,7 @@
 					<span><strong>Subida frenada:</strong> {holdSummary(repo.offsite_hold, now)} Revísalo en Resguardo.</span>
 				</p>
 			{/if}
-			{#if task?.kind === 'offsite'}
+			{#if task?.kind === 'offsite' || task?.kind === 'verify_offsite'}
 				<TaskProgress {repo} {device} {now} />
 			{/if}
 			<div class="line">
@@ -222,6 +224,13 @@
 				<span class="faint">{off.schedule ? offsiteScheduleLabel(off.schedule) : 'programada'}</span>
 				<span class="sync" class:ok={cloud.ok}>{cloud.text}</span>
 			</div>
+			{#if cloudVerify}
+				<p class="small vline v-{cloudVerify.result ?? 'none'}">
+					<ShieldCheck size={13} />
+					<span>{cloudVerify.text}{#if cloudVerify.rotation}<br /><span class="faint">{cloudVerify.rotation}</span>{/if}</span>
+				</p>
+				{#if cloudVerify.message}<p class="err">{cloudVerify.message}</p>{/if}
+			{/if}
 		</section>
 	{/if}
 
@@ -422,6 +431,22 @@
 		justify-content: space-between;
 		gap: 4px 10px;
 		font-size: 12.5px;
+	}
+	.vline {
+		display: flex;
+		align-items: flex-start;
+		gap: 6px;
+		color: var(--text-2);
+	}
+	.vline :global(svg) {
+		flex: none;
+		margin-top: 2px;
+	}
+	.vline.v-error {
+		color: var(--danger);
+	}
+	.vline.v-warning {
+		color: var(--warn);
 	}
 	.msg {
 		overflow-wrap: anywhere;

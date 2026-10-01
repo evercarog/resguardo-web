@@ -54,6 +54,8 @@ export interface Repo {
 	maintenance: Maintenance | null;
 	verify_run: TaskRun | null;
 	offsite_run: TaskRun | null;
+	/** Última verificación de la copia en la nube (no existe antes de la migración 20260930050000). */
+	offsite_verify_run?: TaskRun | null;
 	/** Verificación o subida en curso. */
 	task_running: TaskRunning | null;
 	/** Planes de copia (versiones con planes; en ese caso `schedule` va vacío). */
@@ -97,7 +99,14 @@ export interface PlanInfo {
 
 export interface Maintenance {
 	verify: VerifyConfig | null;
-	offsite: { schedule: OffsiteSchedule | null; provider: string; target_name?: string | null; retention: boolean } | null;
+	offsite: {
+		schedule: OffsiteSchedule | null;
+		provider: string;
+		target_name?: string | null;
+		retention: boolean;
+		/** Verificación de la copia en la nube (desde el destino de origen). */
+		verify?: VerifyConfig | null;
+	} | null;
 }
 
 /** Verificación programada. */
@@ -140,7 +149,7 @@ export interface TaskRun {
 }
 
 export interface TaskRunning {
-	kind: 'verify' | 'offsite';
+	kind: 'verify' | 'offsite' | 'verify_offsite';
 	started: string;
 	stage: string;
 	done: number;

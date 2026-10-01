@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CircleAlert, CircleCheck, CloudUpload, LoaderCircle, ShieldCheck, TriangleAlert } from '@lucide/svelte';
 	import { formatDate, formatRelative } from '$lib/format';
-	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, scheduleLabel, taskProgress, verifyModeLabel } from '$lib/status';
+	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, offsiteVerifySummary, scheduleLabel, taskProgress, verifyModeLabel } from '$lib/status';
 	import type { Repo, TaskRun } from '$lib/types';
 
 	// Verificación y copia externa del repositorio, tal como las informa el equipo.
@@ -11,6 +11,7 @@
 	/** Tarea en curso (una sin noticias en 12 h se da por cortada). */
 	const progress = $derived(taskProgress(repo, now));
 	const running = $derived(progress?.task ?? null);
+	const cloudVerify = $derived(offsiteVerifySummary(repo, now));
 </script>
 
 {#snippet result(run: TaskRun | null)}
@@ -65,10 +66,16 @@
 							No configurada: todas las copias están en un solo lugar
 						{/if}
 					</span>
+					{#if cloudVerify}
+						<span class="faint cv" class:bad={cloudVerify.result === 'error'}>
+							{cloudVerify.text}{#if cloudVerify.rotation}<br />{cloudVerify.rotation}{/if}
+						</span>
+						{#if cloudVerify.message}<span class="msg">{cloudVerify.message}</span>{/if}
+					{/if}
 				</div>
 				<div class="state">
-					{#if running?.kind === 'offsite'}
-						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Subiendo…'}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
+					{#if running?.kind === 'offsite' || running?.kind === 'verify_offsite'}
+						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || (running.kind === 'offsite' ? 'Subiendo…' : 'Verificando la nube…')}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
 					{:else if m?.offsite}
 						{@render result(repo.offsite_run)}
 					{/if}
@@ -127,6 +134,12 @@
 	}
 	.what .faint {
 		font-size: 12px;
+	}
+	.cv {
+		margin-top: 3px;
+	}
+	.cv.bad {
+		color: var(--danger);
 	}
 	.state {
 		display: flex;
