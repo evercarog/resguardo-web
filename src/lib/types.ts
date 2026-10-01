@@ -96,8 +96,20 @@ export interface PlanInfo {
 }
 
 export interface Maintenance {
-	verify: { schedule: Schedule | null; subset_percent: number } | null;
+	verify: VerifyConfig | null;
 	offsite: { schedule: OffsiteSchedule | null; provider: string; target_name?: string | null; retention: boolean } | null;
+}
+
+/** Verificación programada. */
+export interface VerifyConfig {
+	schedule: Schedule | null;
+	subset_percent: number;
+	/** Rotativa: todo el repositorio en N verificaciones (0 o ausente = no; manda sobre `subset_percent`). */
+	rotate_parts?: number | null;
+	/** Parte que toca en la próxima verificación (1 a N). */
+	next_part?: number | null;
+	/** Cuándo terminó el último ciclo completo (null = todavía ninguno). */
+	last_full_at?: string | null;
 }
 
 /** Horario de la copia externa: los de siempre o después de cada copia con cambios (esperando `min_minutes`). */

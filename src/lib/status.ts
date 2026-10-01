@@ -1,6 +1,6 @@
 // Estado de un repositorio y de un equipo (misma lógica que la app de escritorio).
-import { formatBytes, formatDate, formatNumber, formatTime } from '$lib/format';
-import type { Device, OffsiteHold, OffsiteSchedule, PlanSchedule, Repo, Schedule } from '$lib/types';
+import { formatBytes, formatDate, formatNumber, formatRelative, formatTime } from '$lib/format';
+import type { Device, OffsiteHold, OffsiteSchedule, PlanSchedule, Repo, Schedule, VerifyConfig } from '$lib/types';
 
 const HOUR = 3_600_000;
 
@@ -116,6 +116,22 @@ export function scheduleLabel(s: Schedule | null) {
 	if (s.kind === 'hours') return s.every === 1 ? 'cada hora' : `cada ${s.every} h`;
 	if (s.kind === 'daily') return `diaria, ${s.time}`;
 	return `los ${WEEKDAYS_PLURAL[s.weekday]}, ${s.time}`;
+}
+
+/**
+ * Qué lee la verificación: «lee el 5 % de los datos», «solo la estructura» o,
+ * rotativa, «Rotativa: todo el repositorio cada 12 verificaciones · próxima
+ * parte 3 de 12 · último ciclo completo hace 2 meses».
+ */
+export function verifyModeLabel(v: VerifyConfig, now = Date.now()) {
+	const n = v.rotate_parts ?? 0;
+	if (n >= 2) {
+		const parts = [`Rotativa: todo el repositorio cada ${n} verificaciones`];
+		if (v.next_part != null && v.next_part >= 1 && v.next_part <= n) parts.push(`próxima parte ${v.next_part} de ${n}`);
+		parts.push(v.last_full_at ? `último ciclo completo ${formatRelative(v.last_full_at, now)}` : 'todavía sin ciclo completo');
+		return parts.join(' · ');
+	}
+	return v.subset_percent ? `lee el ${v.subset_percent} % de los datos` : 'solo la estructura';
 }
 
 /** Horario de la copia externa (también «después de cada copia con cambios»). */

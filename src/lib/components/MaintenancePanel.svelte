@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CircleAlert, CircleCheck, CloudUpload, LoaderCircle, ShieldCheck, TriangleAlert } from '@lucide/svelte';
 	import { formatDate, formatRelative } from '$lib/format';
-	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, scheduleLabel, taskProgress } from '$lib/status';
+	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, scheduleLabel, taskProgress, verifyModeLabel } from '$lib/status';
 	import type { Repo, TaskRun } from '$lib/types';
 
 	// Verificación y copia externa del repositorio, tal como las informa el equipo.
@@ -36,7 +36,7 @@
 					<span class="faint">
 						{#if m?.verify}
 							{m.verify.schedule ? scheduleLabel(m.verify.schedule) : 'programada'}
-							· {m.verify.subset_percent ? `lee el ${m.verify.subset_percent} % de los datos` : 'solo la estructura'}
+							· {verifyModeLabel(m.verify, now)}
 						{:else}
 							No programada
 						{/if}

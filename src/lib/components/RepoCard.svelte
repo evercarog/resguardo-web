@@ -47,7 +47,8 @@
 		repoStatus,
 		runningSince,
 		scheduleLabel,
-		taskRunning
+		taskRunning,
+		verifyModeLabel
 	} from '$lib/status';
 	import type { Device, Repo, TaskRun } from '$lib/types';
 
@@ -235,6 +236,7 @@
 				{@render result(repo.verify_run, 'todavía ninguna')}
 				<span class="faint small">{verify.schedule ? scheduleLabel(verify.schedule) : 'programada'}</span>
 			</div>
+			<p class="faint small">{verifyModeLabel(verify, now)}</p>
 			{#if repo.verify_run?.result === 'error' && repo.verify_run.message}<p class="err">{repo.verify_run.message}</p>{/if}
 		{:else}
 			<p class="faint small">Sin verificación programada.</p>
