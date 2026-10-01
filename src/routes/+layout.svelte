@@ -98,7 +98,7 @@
 	{#if confirmLogout}
 		<ConfirmDialog
 			title="¿Cerrar sesión?"
-			message="Para volver a entrar necesitarás tu contraseña y el código de verificación."
+			message="Se cerrará en todos tus dispositivos. Para volver a entrar necesitarás tu contraseña y el código de verificación."
 			confirmLabel="Cerrar sesión"
 			onconfirm={logout}
 			onclose={() => (confirmLogout = false)}
