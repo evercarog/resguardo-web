@@ -5,7 +5,7 @@
 	import Logo from '$lib/components/Logo.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
-	import { formatBytes, formatDate, formatDuration } from '$lib/format';
+	import { bogota, bogotaTime, dayKey, formatBytes, formatDate, formatDuration, formatMonth } from '$lib/format';
 	import { chipLevel, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device, Repo } from '$lib/types';
@@ -26,8 +26,9 @@
 	};
 
 	const pad = (n: number) => String(n).padStart(2, '0');
-	const today = new Date();
-	let month = $state(`${today.getFullYear()}-${pad(today.getMonth() + 1)}`);
+	// El mes en curso en Colombia.
+	const today = bogota(Date.now());
+	let month = $state(`${today.year}-${pad(today.month + 1)}`);
 	/** '' = todos los equipos · 'sin' = sin cliente · id del cliente. */
 	// Se puede abrir ya filtrado: /informes?cliente=<id> (desde Clientes).
 	let client = $state(page.url.searchParams.get('cliente') ?? '');
@@ -38,15 +39,13 @@
 
 	const range = $derived.by(() => {
 		const [y, m] = month.split('-').map(Number);
-		const start = new Date(y, m - 1, 1);
-		const end = new Date(y, m, 1);
+		// Del día 1 a las 00:00 (Bogotá) al día 1 del mes siguiente.
+		const start = bogotaTime(y, m - 1, 1);
+		const end = bogotaTime(y, m, 1);
 		return { start, end };
 	});
-	/** «Septiembre de 2026» (solo la primera letra en mayúscula). */
-	const monthLabel = $derived.by(() => {
-		const t = new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(range.start);
-		return t.charAt(0).toUpperCase() + t.slice(1);
-	});
+	/** «Septiembre de 2026». */
+	const monthLabel = $derived(formatMonth(range.start));
 
 	const devices = $derived<Device[]>(
 		db.devices.filter((d) => !d.revoked_at && (client === '' ? true : client === 'sin' ? !d.client_id : d.client_id === client))
@@ -120,14 +119,9 @@
 
 	/** Días del mes que ya pasaron (el mes en curso cuenta hasta hoy). */
 	const daysElapsed = $derived.by(() => {
-		const end = range.end.getTime() > Date.now() ? new Date() : new Date(range.end.getTime() - 1);
-		return Math.max(1, end.getDate());
+		const end = range.end.getTime() > Date.now() ? Date.now() : range.end.getTime() - 1;
+		return Math.max(1, bogota(end).day);
 	});
-
-	const dayKey = (iso: string) => {
-		const d = new Date(iso);
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-	};
 
 	/** Resumen de cada destino de cada equipo en el mes. */
 	const rows = $derived.by(() =>
@@ -205,7 +199,7 @@
 			</label>
 			<label>
 				<span>Mes</span>
-				<input class="input" type="month" bind:value={month} onchange={load} max={`${today.getFullYear()}-${pad(today.getMonth() + 1)}`} />
+				<input class="input" type="month" bind:value={month} onchange={load} max={`${today.year}-${pad(today.month + 1)}`} />
 			</label>
 			<button class="btn btn-primary" onclick={() => window.print()} disabled={loading}><Printer size={15} /> Imprimir o PDF</button>
 		</div>

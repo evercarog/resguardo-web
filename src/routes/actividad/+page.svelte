@@ -14,7 +14,7 @@
 		XCircle
 	} from '@lucide/svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
-	import { formatBytes, formatDate, formatDay, formatDuration, formatTime } from '$lib/format';
+	import { formatBytes, formatDate, formatDay, formatDuration, formatTime, startOfDay } from '$lib/format';
 	import { supabase } from '$lib/supabase';
 	import type { Device, Repo } from '$lib/types';
 
@@ -72,12 +72,8 @@
 	/** Cuántas entradas se pintan (con muchos equipos, 30 días pueden ser miles). */
 	let limit = $state(150);
 
-	/** Inicio del periodo: medianoche de hoy, de hace 6 días o de hace 29. */
-	const since = $derived.by(() => {
-		const t = new Date();
-		const back = period === 'today' ? 0 : period === '7d' ? 6 : 29;
-		return new Date(t.getFullYear(), t.getMonth(), t.getDate() - back);
-	});
+	/** Inicio del periodo: medianoche (Bogotá) de hoy, de hace 6 días o de hace 29. */
+	const since = $derived(startOfDay(Date.now(), period === 'today' ? 0 : period === '7d' ? -6 : -29));
 
 	/** Equipos del cliente elegido (los desvinculados no cuentan, como en Informes). */
 	const clientDevices = $derived<Device[]>(

@@ -9,7 +9,7 @@
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
-	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatTime } from '$lib/format';
+	import { dayKey, formatBytes, formatDate, formatDay, formatDayShort, formatDuration, formatNumber, formatTime, fromDayKey, startOfDay } from '$lib/format';
 	import { HOLD_ADVICE, chipLevel, holdSummary, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince, taskRunning } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
@@ -63,11 +63,8 @@
 		unchangedDays = new Set((runs ?? []).map((x) => keyOf(x.finished_at ?? x.started_at)));
 	}
 
-	const pad = (n: number) => String(n).padStart(2, '0');
-	const keyOf = (iso: string) => {
-		const d = new Date(iso);
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-	};
+	/** Día de una versión, en Bogotá. */
+	const keyOf = (iso: string) => dayKey(iso);
 
 	const withDuration = $derived(snapshots.filter((s) => s.duration_s != null));
 	const avgDuration = $derived(withDuration.length ? withDuration.reduce((n, s) => n + (s.duration_s ?? 0), 0) / withDuration.length : null);
@@ -77,10 +74,9 @@
 	const days = $derived.by(() => {
 		const counts = new Map<string, number>();
 		for (const s of snapshots) counts.set(keyOf(s.time), (counts.get(keyOf(s.time)) ?? 0) + 1);
-		const today = new Date();
 		return Array.from({ length: 60 }, (_, i) => {
-			const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (59 - i));
-			const k = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+			const d = startOfDay(now, -(59 - i));
+			const k = dayKey(d);
 			return { key: k, date: d, n: counts.get(k) ?? 0, same: unchangedDays.has(k) };
 		});
 	});
@@ -96,7 +92,7 @@
 		}
 		return out;
 	});
-	const dayLabel = (d: Date) => new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+	const dayLabel = (d: Date) => formatDayShort(d);
 </script>
 
 <svelte:head><title>{repo?.name ?? 'Destino'} · Resguardo</title></svelte:head>
@@ -225,7 +221,7 @@
 					{#if day}
 						<button class="chip" onclick={() => (day = null)}>
 							<CalendarDays size={13} />
-							{dayLabel(new Date(`${day}T12:00:00`))}
+							{dayLabel(fromDayKey(day))}
 							<X size={12} />
 						</button>
 					{:else}

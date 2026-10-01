@@ -18,7 +18,7 @@
 	import RunResult from '$lib/components/RunResult.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
-	import { formatBytes, formatDate, formatDuration, formatNumber, formatTime } from '$lib/format';
+	import { dayKey, formatBytes, formatDate, formatDayShort, formatDuration, formatNumber, formatTime, startOfDay } from '$lib/format';
 	import {
 		OFFSITE_PROVIDERS,
 		chipLevel,
@@ -71,16 +71,13 @@
 		return { ok: false, text: `pendiente: ${elapsedLabel((local - up) / 3_600_000)} de diferencia` };
 	});
 
-	/** «hoy, 17:00» o «30 sep, 17:00» para la próxima copia. */
+	/** «hoy a las 17:00», «mañana a las 17:00» o la fecha, para la próxima copia (días de Bogotá). */
 	function nextLabel(d: Date) {
-		const today = new Date(now);
-		const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-		if (d.toDateString() === today.toDateString()) return `hoy a las ${formatTime(d.toISOString())}`;
-		if (d.toDateString() === tomorrow.toDateString()) return `mañana a las ${formatTime(d.toISOString())}`;
-		return formatDate(d.toISOString());
+		if (dayKey(d) === dayKey(now)) return `hoy a las ${formatTime(d)}`;
+		if (dayKey(d) === dayKey(startOfDay(now, 1))) return `mañana a las ${formatTime(d)}`;
+		return formatDate(d);
 	}
 
-	const dayFmt = new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' });
 	function dayTitle(d: DayMark) {
 		const what = d.n
 			? `${d.n} ${d.n === 1 ? 'versión' : 'versiones'}`
@@ -89,7 +86,7 @@
 				: d.same
 					? 'sin cambios'
 					: 'sin versiones';
-		return `${dayFmt.format(d.date)}: ${what}`;
+		return `${formatDayShort(d.date)}: ${what}`;
 	}
 	const maxDay = $derived(Math.max(1, ...(days ?? []).map((d) => d.n)));
 </script>

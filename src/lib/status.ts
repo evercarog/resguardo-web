@@ -1,5 +1,5 @@
 // Estado de un repositorio y de un equipo (misma lógica que la app de escritorio).
-import { formatBytes, formatDate, formatNumber, formatRelative, formatTime } from '$lib/format';
+import { bogota, bogotaTime, dayKey, formatBytes, formatDate, formatNumber, formatRelative, formatTime } from '$lib/format';
 import type { Device, OffsiteHold, OffsiteSchedule, PlanSchedule, Repo, Schedule, VerifyConfig } from '$lib/types';
 
 const HOUR = 3_600_000;
@@ -176,8 +176,7 @@ export function offsiteScheduleLabel(s: OffsiteSchedule | null) {
  * 38 GB y 12.400 archivos (lo normal: ~20 MB y ~40).»
  */
 export function holdSummary(h: OffsiteHold, now = Date.now()) {
-	const d = new Date(h.since);
-	const today = new Date(now).toDateString() === d.toDateString();
+	const today = dayKey(now) === dayKey(h.since);
 	const when = today ? `de las ${formatTime(h.since)}` : `del ${formatDate(h.since)}`;
 	const added = [h.data_added != null ? formatBytes(h.data_added) : null, h.files != null ? `${formatNumber(h.files)} archivos` : null]
 		.filter(Boolean)
@@ -315,12 +314,14 @@ function planMinutes(s: PlanSchedule): number[] {
 
 /**
  * Próxima copia automática prevista según los planes (o el horario único de
- * antes), en la hora de este dispositivo. Aproximada: null si no se puede saber.
+ * antes). Los horarios son la hora del equipo, que está en Colombia (Bogotá).
+ * Aproximada: null si no se puede saber.
  */
 export function nextExpected(repo: Repo, now = Date.now()): Date | null {
-	const base = new Date(now);
-	const at = (dayOffset: number, minute: number) =>
-		new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset, Math.floor(minute / 60), minute % 60);
+	const base = bogota(now);
+	const at = (dayOffset: number, minute: number) => bogotaTime(base.year, base.month, base.day + dayOffset, Math.floor(minute / 60), minute % 60);
+	/** Día de la semana (0 = lunes) de hoy + `off` días, en Bogotá. */
+	const weekday = (off: number) => (base.weekday + off) % 7;
 	let best: Date | null = null;
 	const consider = (d: Date) => {
 		if (d.getTime() > now && (!best || d < best)) best = d;
@@ -329,8 +330,7 @@ export function nextExpected(repo: Repo, now = Date.now()): Date | null {
 	for (const p of plans) {
 		const mins = planMinutes(p.schedule!);
 		for (let off = 0; off <= 7; off++) {
-			const wd = (new Date(base.getFullYear(), base.getMonth(), base.getDate() + off).getDay() + 6) % 7;
-			if (!p.schedule!.days.includes(wd)) continue;
+			if (!p.schedule!.days.includes(weekday(off))) continue;
 			for (const m of mins) consider(at(off, m));
 		}
 	}
@@ -340,8 +340,7 @@ export function nextExpected(repo: Repo, now = Date.now()): Date | null {
 			const m = toMin(s.time);
 			if (m !== null)
 				for (let off = 0; off <= 7; off++) {
-					const wd = (new Date(base.getFullYear(), base.getMonth(), base.getDate() + off).getDay() + 6) % 7;
-					if (s.kind === 'daily' || s.weekday === wd) consider(at(off, m));
+					if (s.kind === 'daily' || s.weekday === weekday(off)) consider(at(off, m));
 				}
 		} else if (s.kind === 'hours' && repo.last_snapshot_at) {
 			consider(new Date(new Date(repo.last_snapshot_at).getTime() + s.every * HOUR));

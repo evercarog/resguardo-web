@@ -17,7 +17,7 @@
 	import PushCard from '$lib/components/PushCard.svelte';
 	import RepoCard, { type DayMark } from '$lib/components/RepoCard.svelte';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
-	import { formatDate, formatRelative } from '$lib/format';
+	import { dayKey, formatDate, formatRelative, startOfDay } from '$lib/format';
 	import { HOLD_ADVICE, LEVEL_ORDER, deviceOnline, holdSummary, repoStatus, type Level } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device } from '$lib/types';
@@ -30,8 +30,6 @@
 
 	/** Últimos 14 días por destino ("equipo|destino" → día → marcas), en dos consultas por carga. */
 	let history = $state<Map<string, Map<string, { n: number; same: boolean; failed: boolean }>> | null>(null);
-	const pad = (n: number) => String(n).padStart(2, '0');
-	const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 	/** El servidor entrega como mucho 1000 filas por consulta: se piden por páginas. */
 	async function pages<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>) {
@@ -47,8 +45,8 @@
 	}
 
 	async function loadHistory() {
-		const t = new Date();
-		const from = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 13).toISOString();
+		// Desde la medianoche (Bogotá) de hace 13 días.
+		const from = startOfDay(Date.now(), -13).toISOString();
 		try {
 			const [snaps, runs] = await Promise.all([
 				pages<{ device_id: string; repo_id: string; time: string }>((a, z) =>
@@ -85,9 +83,8 @@
 	function daysOf(deviceId: string, repoId: string): DayMark[] | null {
 		if (!history) return null;
 		const m = history.get(`${deviceId}|${repoId}`);
-		const t = new Date(now);
 		return Array.from({ length: 14 }, (_, i) => {
-			const date = new Date(t.getFullYear(), t.getMonth(), t.getDate() - (13 - i));
+			const date = startOfDay(now, -(13 - i));
 			const key = dayKey(date);
 			const v = m?.get(key);
 			return { key, date, n: v?.n ?? 0, same: v?.same ?? false, failed: v?.failed ?? false };
@@ -120,8 +117,12 @@
 		refreshing = false;
 	}
 
-	/** Orden de gravedad: una subida frenada por un cambio inusual va antes que todo. */
-	const rank = (r: { repo: { offsite_hold?: unknown }; status: { level: Level } }) => (r.repo.offsite_hold ? -1 : LEVEL_ORDER[r.status.level]);
+	/**
+	 * Orden de gravedad. Una subida frenada por un cambio inusual (posible
+	 * ransomware) va antes que todo, también antes que un equipo sin conexión
+	 * (que resta 10 al ordenar equipos y clientes).
+	 */
+	const rank = (r: { repo: { offsite_hold?: unknown }; status: { level: Level } }) => (r.repo.offsite_hold ? -100 : LEVEL_ORDER[r.status.level]);
 	const repoRows = $derived(
 		db.repos
 			.map((r) => ({ repo: r, status: repoStatus(r, now) }))
