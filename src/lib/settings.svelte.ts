@@ -10,13 +10,13 @@ export const THEMES: { id: ThemeMode; label: string }[] = [
 ];
 
 export const ACCENTS: { id: Accent; label: string; light: string; dark: string }[] = [
-	{ id: 'teal', label: 'Verde azulado', light: '#0d7a69', dark: '#3cc4ad' },
-	{ id: 'blue', label: 'Azul', light: '#1f63d8', dark: '#5b9dff' },
+	{ id: 'teal', label: 'Verde azulado', light: '#0f766e', dark: '#3cc4ad' },
+	{ id: 'blue', label: 'Azul', light: '#2563eb', dark: '#6aa1ff' },
 	{ id: 'indigo', label: 'Índigo', light: '#4f46e5', dark: '#8e8cff' },
 	{ id: 'violet', label: 'Violeta', light: '#7c3aed', dark: '#b38bff' },
-	{ id: 'rose', label: 'Rosa', light: '#cf2f68', dark: '#ff7aa6' },
+	{ id: 'rose', label: 'Rosa', light: '#d6336c', dark: '#ff7aa6' },
 	{ id: 'amber', label: 'Ámbar', light: '#b45309', dark: '#f2b33d' },
-	{ id: 'graphite', label: 'Grafito', light: '#3f4b5c', dark: '#aab6c6' }
+	{ id: 'graphite', label: 'Grafito', light: '#3f3f46', dark: '#d4d4d8' }
 ];
 
 const KEY = 'resguardo:apariencia';

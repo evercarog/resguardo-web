@@ -7,9 +7,9 @@
 
   /** Colores de las miniaturas de cada modo: [fondo, barra lateral, tarjeta, texto]. */
   const PREVIEW = {
-    light: ["#f4f5f7", "#ffffff", "#ffffff", "#c9ced6"],
-    dark: ["#0d1014", "#151a1f", "#1a2027", "#3a4450"],
-    black: ["#000000", "#0b0b0c", "#111113", "#2e2e33"],
+    light: ["#ffffff", "#f7f7f8", "#ffffff", "#d5d5da"],
+    dark: ["#0f0f11", "#0b0b0d", "#151518", "#34343b"],
+    black: ["#000000", "#000000", "#0a0a0b", "#1f1f23"],
   } as const;
   const current = $derived(ACCENTS.find((a) => a.id === appearance.accent)!);
 </script>
@@ -35,7 +35,7 @@
 <Modal {onclose} labelledby="appearance-title" width={560}>
   <header>
     <div class="title">
-      <span class="ticon"><Palette size={19} /></span>
+      <span class="ticon"><Palette size={18} /></span>
       <h2 id="appearance-title">Apariencia</h2>
     </div>
     <button class="icon-btn" title="Cerrar" aria-label="Cerrar" onclick={onclose}><X size={17} /></button>
@@ -80,7 +80,7 @@
           style:--l={a.light}
           style:--d={a.dark}
         >
-          <span class="dot">{#if appearance.accent === a.id}<Check size={14} strokeWidth={3} />{/if}</span>
+          <span class="sw-dot">{#if appearance.accent === a.id}<Check size={14} strokeWidth={3} />{/if}</span>
         </button>
       {/each}
     </div>
@@ -107,23 +107,24 @@
   .ticon {
     display: grid;
     place-items: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
-    color: var(--accent-soft-text);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius);
+    color: var(--accent-text);
     background: var(--accent-soft);
   }
   h2 {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: var(--fs-h2);
+    line-height: var(--lh-h2);
+    font-weight: 600;
   }
   section + section {
     margin-top: 22px;
   }
   h3 {
     margin-bottom: 10px;
-    font-size: 13px;
-    font-weight: 650;
+    font-size: var(--fs-sm);
+    font-weight: 500;
     color: var(--text-2);
   }
   .themes {
@@ -177,15 +178,15 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    font-size: 13px;
-    font-weight: 550;
+    font-size: var(--fs-sm);
+    font-weight: 500;
   }
   .theme.on .theme-label {
-    color: var(--text);
+    color: var(--text-1);
   }
   .hint {
     margin: 8px 0 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .accents {
     display: flex;
@@ -207,7 +208,7 @@
   .swatch.on {
     border-color: var(--text-3);
   }
-  .dot {
+  .sw-dot {
     display: grid;
     place-items: center;
     width: 30px;

@@ -78,8 +78,7 @@
     position: fixed;
     inset: 0;
     z-index: 10;
-    background: rgb(8 12 16 / 0.45);
-    backdrop-filter: blur(2px);
+    background: var(--overlay);
   }
   .dialog {
     position: fixed;
@@ -90,10 +89,15 @@
     max-height: calc(100vh - 48px);
     max-height: calc(100dvh - 48px);
     overflow: auto;
-    padding: 22px 24px 20px;
+    padding: var(--sp-6);
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
   }
   .dialog:focus {
+    outline: none;
+  }
+  /* El foco del diálogo en sí no se dibuja (se ve en su contenido). */
+  .dialog:focus-visible {
     outline: none;
   }
 </style>

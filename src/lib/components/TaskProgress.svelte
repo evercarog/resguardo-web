@@ -22,18 +22,17 @@
 {#if p}
 	<div class="task" role="status">
 		<p class="line">
-			<span class="spin"><LoaderCircle size={13} /></span>
-			<span
-				><strong>{p.title}</strong>: <span title={p.task.current_snapshot_time ? `Versión del ${formatDate(p.task.current_snapshot_time)}` : p.task.stage}
-					>{p.detail}</span
-				></span
-			>
+			<span class="spin ic"><LoaderCircle size={14} aria-hidden="true" /></span>
+			<span>
+				<strong>{p.title}</strong>
+				<span class="detail num" title={p.task.current_snapshot_time ? `Versión del ${formatDate(p.task.current_snapshot_time)}` : p.task.stage}>· {p.detail}</span>
+			</span>
 		</p>
 		{#if p.percent != null}
-			<div class="bar" aria-hidden="true"><span style:width="{p.percent}%"></span></div>
+			<div class="progress" aria-hidden="true"><span style:width="{p.percent}%"></span></div>
 		{/if}
 		{#if device?.last_seen_at}
-			<span class="upd">actualizado {freshLabel(device.last_seen_at, clock)}</span>
+			<span class="upd">Actualizado {freshLabel(device.last_seen_at, clock)}</span>
 		{/if}
 	</div>
 {/if}
@@ -42,53 +41,30 @@
 	.task {
 		display: flex;
 		flex-direction: column;
-		gap: 5px;
-		font-size: 12px;
+		gap: 6px;
+		min-width: 0;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 	.line {
 		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin: 0;
-		color: var(--accent);
-		font-weight: 600;
+		align-items: flex-start;
+		gap: 8px;
 	}
-	.line strong {
-		font-weight: 650;
+	.ic {
+		flex: none;
+		margin-top: 2px;
+		color: var(--info);
 	}
-	.bar {
-		height: 5px;
-		overflow: hidden;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--accent) 15%, var(--surface-3));
+	strong {
+		font-weight: 500;
 	}
-	.bar span {
-		display: block;
-		height: 100%;
-		border-radius: inherit;
-		background: var(--accent);
-		transition: width 0.4s ease;
+	.detail {
+		color: var(--text-2);
 	}
 	.upd {
-		font-size: 11px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 		color: var(--text-3);
-	}
-	.spin {
-		display: grid;
-		flex: none;
-		animation: spin 1s linear infinite;
-	}
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.spin {
-			animation: none;
-		}
-		.bar span {
-			transition: none;
-		}
 	}
 </style>

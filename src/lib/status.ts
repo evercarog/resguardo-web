@@ -22,6 +22,20 @@ export const LEVEL_LABEL: Record<Level, string> = {
 export type ChipLevel = Level | 'held';
 export const chipLevel = (repo: Repo, level: Level): ChipLevel => (repo.offsite_hold ? 'held' : level);
 
+/** Tono del sistema de diseño (color del estado) para cada nivel. */
+export type Tone = 'ok' | 'warn' | 'bad' | 'info' | 'paused' | 'neutral';
+export const LEVEL_TONE: Record<ChipLevel, Tone> = {
+	ok: 'ok',
+	late: 'warn',
+	overdue: 'bad',
+	failed: 'bad',
+	empty: 'neutral',
+	paused: 'paused',
+	held: 'bad'
+};
+/** Tono de un resultado de ejecución. */
+export const RESULT_TONE = { ok: 'ok', warning: 'warn', error: 'bad' } as const;
+
 export const LEVEL_ORDER: Record<Level, number> = { failed: 0, overdue: 1, late: 2, empty: 3, paused: 4, ok: 5 };
 
 /** Horas entre copias esperadas, según su programación. */
@@ -170,19 +184,60 @@ export function restoreTestLabel(t: { files: number | null; max_mb: number | nul
 }
 
 /**
- * Resumen de la salud de la protección, igual que en la app de escritorio:
- * «Protección 6 de 7 · 1 por revisar» (o «· todo en orden») y el tono del
- * anillo según la proporción (todo = bien, desde el 60 % = aviso, menos = mal).
+ * Resumen de la salud de la protección (diseño común): «Protección 5 de 7 ·
+ * 2 por revisar» (o «· todo en orden»). El tono del anillo es el global: mal
+ * si algo falló, aviso si falta algo, bien si todo está en orden.
  */
 export function protectionSummary(p: Protection) {
 	const ratio = p.score / Math.max(1, p.total);
 	const issues = p.items.filter((i) => i.state !== 'ok').length;
+	const tone: 'ok' | 'warn' | 'bad' = p.items.some((i) => i.state === 'bad') ? 'bad' : issues ? 'warn' : 'ok';
 	return {
 		ratio,
-		tone: (ratio >= 0.999 ? 'ok' : ratio >= 0.6 ? 'warn' : 'bad') as 'ok' | 'warn' | 'bad',
+		tone,
 		issues,
 		text: `Protección ${p.score} de ${p.total} · ${issues ? `${issues} por revisar` : 'todo en orden'}`
 	};
+}
+
+/** Resultado de un día en los cuadros de actividad (14 o 60 días). */
+export type DayState = 'data' | 'same' | 'warn' | 'bad' | 'none' | 'future';
+export interface DayCell {
+	key: string;
+	date: Date;
+	state: DayState;
+	/** Texto del tooltip: fecha y resultado. */
+	title: string;
+	/** Versiones creadas ese día. */
+	n: number;
+}
+
+/**
+ * Estado de un día a partir de lo que pasó: con versiones, bien (o aviso si
+ * alguna copia tuvo avisos o falló pero otra salió bien); solo «sin cambios»,
+ * bien suave; solo fallos, mal; nada, vacío.
+ */
+export function dayState(d: { n: number; same: boolean; failed: boolean; warned?: boolean }): DayState {
+	const ok = d.n > 0 || d.same;
+	if (d.failed && !ok) return 'bad';
+	if (d.warned || (d.failed && ok)) return 'warn';
+	if (d.n > 0) return 'data';
+	if (d.same) return 'same';
+	return 'none';
+}
+
+export function dayStateLabel(s: DayState, n: number) {
+	return s === 'data'
+		? `${n} ${n === 1 ? 'versión' : 'versiones'}`
+		: s === 'same'
+			? 'sin cambios'
+			: s === 'warn'
+				? 'con avisos'
+				: s === 'bad'
+					? 'falló'
+					: s === 'future'
+						? '—'
+						: 'sin copia';
 }
 
 /** Horario de la copia externa (también «después de cada copia con cambios»). */

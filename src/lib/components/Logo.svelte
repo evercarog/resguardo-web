@@ -1,16 +1,20 @@
 <script lang="ts">
   let { size = 32 }: { size?: number } = $props();
+  // Id propio: si hubiera uno compartido y la primera copia estuviera oculta
+  // (p. ej. la barra superior al imprimir), el degradado no se pintaría.
+  const uid = $props.id();
+  const gid = `logo-bg-${uid}`;
 </script>
 
 <!-- Escudo con una flecha circular: guardar y poder volver atrás. -->
 <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
   <defs>
-    <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" style="stop-color: color-mix(in srgb, var(--accent-l) 78%, white)" />
       <stop offset="1" style="stop-color: color-mix(in srgb, var(--accent-l) 82%, black)" />
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="15" fill="url(#logo-bg)" />
+  <rect width="64" height="64" rx="15" fill="url(#{gid})" />
   <path
     d="M32 11.5 16.5 17v13.2c0 10.1 6.5 18.9 15.5 22.3 9-3.4 15.5-12.2 15.5-22.3V17L32 11.5Z"
     fill="rgb(255 255 255 / 0.14)"
