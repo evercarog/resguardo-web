@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { CircleAlert, CircleCheck, FileText, Printer, TriangleAlert, XCircle } from '@lucide/svelte';
+	import { page } from '$app/state';
 	import Logo from '$lib/components/Logo.svelte';
+	import StatusChip from '$lib/components/StatusChip.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDuration } from '$lib/format';
-	import { kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus } from '$lib/status';
+	import { chipLevel, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device, Repo } from '$lib/types';
 
@@ -27,7 +29,8 @@
 	const today = new Date();
 	let month = $state(`${today.getFullYear()}-${pad(today.getMonth() + 1)}`);
 	/** '' = todos los equipos · 'sin' = sin cliente · id del cliente. */
-	let client = $state('');
+	// Se puede abrir ya filtrado: /informes?cliente=<id> (desde Clientes).
+	let client = $state(page.url.searchParams.get('cliente') ?? '');
 	let snaps = $state<SnapRow[]>([]);
 	let runs = $state<RunRow[]>([]);
 	let loading = $state(true);
@@ -39,9 +42,11 @@
 		const end = new Date(y, m, 1);
 		return { start, end };
 	});
-	const monthLabel = $derived(
-		new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(range.start)
-	);
+	/** «Septiembre de 2026» (solo la primera letra en mayúscula). */
+	const monthLabel = $derived.by(() => {
+		const t = new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(range.start);
+		return t.charAt(0).toUpperCase() + t.slice(1);
+	});
 
 	const devices = $derived<Device[]>(
 		db.devices.filter((d) => !d.revoked_at && (client === '' ? true : client === 'sin' ? !d.client_id : d.client_id === client))
@@ -212,7 +217,7 @@
 			<div class="brand"><Logo size={30} /><strong>Resguardo</strong></div>
 			<div class="title">
 				<h2>Informe de copias de seguridad</h2>
-				<p>{clientName} · <span class="cap">{monthLabel}</span></p>
+				<p>{clientName} · {monthLabel}</p>
 			</div>
 			<p class="faint gen">Generado el {formatDate(new Date().toISOString())}</p>
 		</header>
@@ -251,7 +256,7 @@
 									<th class="num">Días con copia</th>
 									<th class="num">Fallos</th>
 									<th class="num">Datos nuevos</th>
-									<th>Última copia</th>
+									<th>Última versión</th>
 									<th>Estado</th>
 								</tr>
 							</thead>
@@ -269,7 +274,7 @@
 										<td class="num" class:bad={r.failed > 0}>{r.failed}</td>
 										<td class="num">{formatBytes(r.added)}</td>
 										<td class="small">{r.last ? formatDate(r.last) : '—'}{#if r.avg != null}<span class="faint"> · {formatDuration(r.avg)}</span>{/if}</td>
-										<td><span class="badge lvl-{r.status.level}">{r.status.label}</span></td>
+										<td><StatusChip level={chipLevel(r.repo, r.status.level)} /></td>
 									</tr>
 									{#if r.lastError}
 										<tr class="errrow"><td colspan="8">Último error: {r.lastError}</td></tr>
@@ -286,7 +291,7 @@
 
 			<footer class="rfoot faint">
 				Datos informados por Resguardo en cada equipo. Las versiones del mes pueden estar incompletas si el destino guarda más de 500
-				(se informan las más recientes). Las copias están cifradas con restic; este informe no contiene nombres de archivos.
+				(se informan las más recientes). Las versiones están cifradas con restic; este informe no contiene nombres de archivos.
 			</footer>
 		{/if}
 	</article>
@@ -353,9 +358,6 @@
 	.title p {
 		margin: 2px 0 0;
 		font-size: 14px;
-	}
-	.cap {
-		text-transform: capitalize;
 	}
 	.gen {
 		font-size: 12px;
@@ -457,30 +459,6 @@
 		padding-top: 0;
 		color: var(--text-2);
 		font-size: 12px;
-	}
-	.badge {
-		display: inline-block;
-		white-space: nowrap;
-		padding: 0 9px;
-		font-size: 11.5px;
-		font-weight: 650;
-		line-height: 22px;
-		border-radius: 999px;
-		color: var(--lvl, var(--text-2));
-		background: color-mix(in srgb, var(--lvl, var(--text-3)) 13%, transparent);
-	}
-	.lvl-ok {
-		--lvl: var(--success);
-	}
-	.lvl-late {
-		--lvl: var(--warn);
-	}
-	.lvl-overdue,
-	.lvl-failed {
-		--lvl: var(--danger);
-	}
-	.lvl-paused {
-		--lvl: var(--text-3);
 	}
 	.rfoot {
 		font-size: 11.5px;

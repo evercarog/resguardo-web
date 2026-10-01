@@ -3,6 +3,7 @@
 	import {
 		CircleAlert,
 		CircleCheck,
+		CloudCheck,
 		CloudUpload,
 		History,
 		Inbox,
@@ -28,10 +29,12 @@
 		result: 'ok' | 'warning' | 'error';
 		message: string | null;
 		data_added: number | null;
+		/** Salió bien sin cambios (no creó versión). */
+		unchanged?: boolean;
 	};
 	type SnapRow = { device_id: string; repo_id: string; snapshot_id: string; time: string; duration_s: number | null; data_added: number | null };
 	type Result = 'ok' | 'warning' | 'error';
-	type Kind = 'run' | 'snapshot' | 'verify' | 'offsite';
+	type Kind = 'run' | 'snapshot' | 'verify' | 'offsite' | 'verify_offsite';
 
 	/** Una entrada de la línea de tiempo. */
 	interface Entry {
@@ -44,6 +47,8 @@
 		message: string | null;
 		duration: number | null;
 		added: number | null;
+		/** Copia correcta sin cambios. */
+		unchanged?: boolean;
 	}
 
 	type Period = 'today' | '7d' | '30d';
@@ -123,7 +128,7 @@
 				pages<RunRow>((a, z) =>
 					supabase
 						.from('runs')
-						.select('device_id, repo_id, started_at, finished_at, result, message, data_added')
+						.select('device_id, repo_id, started_at, finished_at, result, message, data_added, unchanged')
 						.in('device_id', ids)
 						.gte('started_at', from)
 						.order('started_at', { ascending: false })
@@ -194,7 +199,8 @@
 				repo_id: r.repo_id,
 				message: r.message,
 				duration: r.finished_at ? Math.max(0, (end - start) / 1000) : null,
-				added: r.data_added
+				added: r.unchanged ? null : r.data_added,
+				unchanged: r.result !== 'error' && r.unchanged === true
 			});
 		}
 
@@ -225,7 +231,8 @@
 			if (!allowed.has(repo.device_id)) continue;
 			for (const [kind, run] of [
 				['verify', repo.verify_run],
-				['offsite', repo.offsite_run]
+				['offsite', repo.offsite_run],
+				['verify_offsite', repo.offsite_verify_run]
 			] as const) {
 				if (!run) continue;
 				const time = run.finished ?? run.started;
@@ -275,9 +282,10 @@
 		run: 'Copia automática',
 		snapshot: 'Versión guardada',
 		verify: 'Verificación',
-		offsite: 'Copia externa'
+		offsite: 'Subida a la nube',
+		verify_offsite: 'Verificación de la nube'
 	};
-	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload };
+	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload, verify_offsite: CloudCheck };
 	const RESULT_LABEL: Record<Result, string> = { ok: 'Correcta', warning: 'Con avisos', error: 'Falló' };
 	const RESULT_ICON = { ok: CircleCheck, warning: TriangleAlert, error: XCircle };
 	const LVL: Record<Result, string> = { ok: 'ok', warning: 'late', error: 'failed' };
@@ -403,7 +411,7 @@
 											{#if e.kind === 'snapshot'}
 												<span class="faint small">a mano u otra herramienta</span>
 											{:else}
-												<span class="badge lvl-{LVL[e.result]}"><ResultIcon size={12} />{RESULT_LABEL[e.result]}</span>
+												<span class="chip lvl-{LVL[e.result]}"><ResultIcon size={12} aria-hidden="true" />{e.unchanged ? 'Sin cambios' : RESULT_LABEL[e.result]}</span>
 											{/if}
 										</div>
 										<span class="faint where">{repo?.name ?? e.repo_id} · {deviceName(e.device_id)}</span>
@@ -431,7 +439,7 @@
 			{/if}
 			<p class="faint note">
 				«Versión guardada» son versiones que no corresponden a ninguna copia automática: hechas a mano o por otra herramienta. De la
-				verificación y la copia externa se muestra solo el último resultado de cada destino.
+				verificación, la subida a la nube y la verificación de la nube se muestra solo el último resultado de cada destino.
 			</p>
 		{/if}
 	{/if}
@@ -456,14 +464,6 @@
 	.head p {
 		margin: 2px 0 0;
 		font-size: 13.5px;
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 
 	/* ---------- Filtros ---------- */
@@ -656,28 +656,6 @@
 	}
 	.facts .faint {
 		font-size: 11.5px;
-	}
-	.lvl-ok {
-		--lvl: var(--success);
-	}
-	.lvl-late {
-		--lvl: var(--warn);
-	}
-	.lvl-failed {
-		--lvl: var(--danger);
-	}
-	.badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 0 8px;
-		font-size: 11.5px;
-		font-weight: 650;
-		line-height: 20px;
-		white-space: nowrap;
-		border-radius: 999px;
-		color: var(--lvl, var(--text-2));
-		background: color-mix(in srgb, var(--lvl, var(--text-3)) 13%, transparent);
 	}
 	.more {
 		align-self: center;
