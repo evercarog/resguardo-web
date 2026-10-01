@@ -15,6 +15,23 @@ export interface Device {
 	created_at: string;
 	last_seen_at: string | null;
 	revoked_at: string | null;
+	/** El equipo permite «Copiar ahora» desde la web u otro equipo (lo activa el propio equipo). */
+	remote_backup_enabled?: boolean;
+}
+
+/** Petición de una copia a distancia («Copiar ahora» de un plan). */
+export interface DeviceCommand {
+	id: string;
+	device_id: string;
+	repo_id: string;
+	plan_id: string;
+	kind: 'backup';
+	requested_at: string;
+	requested_from: string;
+	status: 'pending' | 'claimed' | 'done' | 'failed' | 'expired' | 'rejected';
+	claimed_at: string | null;
+	finished_at: string | null;
+	message: string | null;
 }
 
 export type Schedule =

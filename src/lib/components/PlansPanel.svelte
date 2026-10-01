@@ -1,16 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { CalendarClock, Hand } from '@lucide/svelte';
+	import RemoteBackup from '$lib/components/RemoteBackup.svelte';
 	import RunResult from '$lib/components/RunResult.svelte';
-	import { planScheduleLabel } from '$lib/status';
-	import type { PlanInfo } from '$lib/types';
+	import { deviceOnline, planScheduleLabel } from '$lib/status';
+	import type { Device, Repo } from '$lib/types';
 
-	// Planes de copia del repositorio, tal como los informa el equipo.
-	let { plans, now }: { plans: PlanInfo[]; now: number } = $props();
+	// Planes de copia del repositorio, tal como los informa el equipo, con
+	// «Copiar ahora» si el equipo permite copias a distancia.
+	let { repo, device, now }: { repo: Repo; device: Device | null; now: number } = $props();
+	const plans = $derived(repo.plans ?? []);
 
 	/** Copia señalada desde Estado (#copia-<id>): se lleva a la vista y se resalta. */
 	let marked = $state('');
 	onMount(() => {
+		// Desde «Copiar ahora…» en Estado: a la lista de copias.
+		if (location.hash === '#copias') {
+			requestAnimationFrame(() => document.getElementById('copias')?.scrollIntoView({ block: 'start' }));
+			return;
+		}
 		const id = decodeURIComponent(location.hash.replace(/^#copia-/, ''));
 		if (!location.hash.startsWith('#copia-') || !plans.some((p) => p.id === id)) return;
 		marked = id;
@@ -19,8 +27,15 @@
 </script>
 
 {#if plans.length}
-	<section class="card panel plans" aria-labelledby="t-plans">
-		<div class="panel-head"><h2 class="section-title" id="t-plans">Copias que se guardan aquí</h2></div>
+	<section class="card panel plans" id="copias" aria-labelledby="t-plans">
+		<div class="panel-head">
+			<h2 class="section-title" id="t-plans">Copias que se guardan aquí</h2>
+			{#if device && !device.remote_backup_enabled}
+				<p class="hint">Para copiar desde aquí, activa «Copias a distancia» en Resguardo, en ese equipo.</p>
+			{:else if device && !deviceOnline(device, now)}
+				<p class="hint">El equipo está sin conexión: podrás pedir una copia cuando vuelva a conectarse.</p>
+			{/if}
+		</div>
 		<div class="rows">
 			{#each plans as p (p.id)}
 				<div class="row" class:off={!p.schedule} class:marked={marked === p.id} id="copia-{p.id}">
@@ -39,6 +54,7 @@
 					<div class="state">
 						<RunResult run={p.last_run} {now} />
 						{#if p.last_run && p.last_run.result !== 'ok' && p.last_run.message}<span class="msg">{p.last_run.message}</span>{/if}
+						<span class="remote"><RemoteBackup {repo} planId={p.id} planName={p.name} {device} {now} /></span>
 					</div>
 				</div>
 			{/each}
@@ -120,6 +136,30 @@
 		}
 	}
 
+	.plans {
+		scroll-margin-top: calc(var(--header-h, 56px) + 16px);
+	}
+	.hint {
+		margin-top: 2px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		color: var(--text-3);
+	}
+	.remote {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 4px;
+		margin-top: 4px;
+	}
+	.remote:empty {
+		display: none;
+	}
+	@media (max-width: 640px) {
+		.remote {
+			align-items: flex-start;
+		}
+	}
 	.name {
 		display: flex;
 		flex-wrap: wrap;

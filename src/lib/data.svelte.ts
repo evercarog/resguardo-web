@@ -2,7 +2,7 @@
 // real: cuando un equipo informa, la web se actualiza sola.
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '$lib/supabase';
-import type { Client, Device, Repo } from '$lib/types';
+import type { Client, Device, DeviceCommand, Repo } from '$lib/types';
 
 export const db = $state<{
 	loaded: boolean;
@@ -12,7 +12,15 @@ export const db = $state<{
 	clients: Client[];
 	devices: Device[];
 	repos: Repo[];
-}>({ loaded: false, error: '', updatedAt: null, clients: [], devices: [], repos: [] });
+	/** Peticiones de copias a distancia recientes (las más nuevas primero). */
+	commands: DeviceCommand[];
+}>({ loaded: false, error: '', updatedAt: null, clients: [], devices: [], repos: [], commands: [] });
+
+/** Peticiones recientes. Si la tabla aún no existe (antes de la migración), ninguna. */
+export async function loadCommands() {
+	const { data, error } = await supabase.from('device_commands').select('*').order('requested_at', { ascending: false }).limit(300);
+	if (!error) db.commands = (data ?? []) as DeviceCommand[];
+}
 
 /** Fallos de red (sin conexión, DNS, servidor inalcanzable) según cada navegador. */
 const NETWORK = /failed to fetch|fetch failed|networkerror|network request failed|load failed|network error|err_internet/i;
@@ -38,7 +46,8 @@ export async function loadAll(attempt = 0): Promise<void> {
 	try {
 		results = await Promise.all([
 			supabase.from('clients').select('*').order('name'),
-			supabase.from('devices').select('id, client_id, name, os, app_version, created_at, last_seen_at, revoked_at').order('name'),
+			// Todas las columnas: así funciona antes y después de las migraciones que añaden alguna.
+			supabase.from('devices').select('*').order('name'),
 			supabase.from('repos').select('*')
 		]);
 	} catch (e) {
@@ -63,6 +72,7 @@ export async function loadAll(attempt = 0): Promise<void> {
 	db.error = '';
 	db.loaded = true;
 	db.updatedAt = Date.now();
+	await loadCommands();
 	// Tiempo real en cuanto hay una carga correcta (también si la primera falló sin conexión).
 	subscribe();
 }
@@ -92,6 +102,17 @@ export function subscribe() {
 				const i = db.devices.findIndex((d) => d.id === row.id);
 				if (i >= 0) db.devices[i] = { ...db.devices[i], ...row };
 				else db.devices.push(row);
+			}
+		})
+		// Copias a distancia: el estado de cada petición cambia solo (pedida → en marcha → hecha).
+		.on('postgres_changes', { event: '*', schema: 'public', table: 'device_commands' }, (p) => {
+			if (p.eventType === 'DELETE') {
+				db.commands = db.commands.filter((c) => c.id !== (p.old as Partial<DeviceCommand>).id);
+			} else {
+				const row = p.new as DeviceCommand;
+				const i = db.commands.findIndex((c) => c.id === row.id);
+				if (i >= 0) db.commands[i] = row;
+				else db.commands.unshift(row);
 			}
 		})
 		.subscribe();

@@ -2,6 +2,8 @@
 	import { CircleAlert, CirclePause, Cloud, CloudOff, LoaderCircle, TriangleAlert } from '@lucide/svelte';
 	import DaySquares from '$lib/components/DaySquares.svelte';
 	import ProtectionRing from '$lib/components/ProtectionRing.svelte';
+	import RemoteBackup from '$lib/components/RemoteBackup.svelte';
+	import { db } from '$lib/data.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
@@ -9,6 +11,7 @@
 	import {
 		OFFSITE_PROVIDERS,
 		chipLevel,
+		deviceOnline,
 		elapsedLabel,
 		kindLabel,
 		nextExpected,
@@ -41,6 +44,18 @@
 	const next = $derived(status.pause.active ? null : nextExpected(repo, now));
 	const off = $derived(repo.maintenance?.offsite ?? null);
 	const prot = $derived(repo.protection ? protectionSummary(repo.protection) : null);
+	/** «Copiar ahora»: solo si el equipo lo permite y está conectado. */
+	const plans = $derived(repo.plans ?? []);
+	const canRemote = $derived(!!device?.remote_backup_enabled && !!device && deviceOnline(device, now) && plans.length > 0);
+	/** Alguna petición a distancia de este destino viva o de las últimas 24 h. */
+	const hasRemote = $derived(
+		db.commands.some(
+			(c) =>
+				c.device_id === repo.device_id &&
+				c.repo_id === repo.repo_id &&
+				(c.status === 'pending' || c.status === 'claimed' || now - new Date(c.finished_at ?? c.requested_at).getTime() < 86_400_000)
+		)
+	);
 
 	/** La nube en una línea: dónde y cómo va. */
 	const cloud = $derived.by(() => {
@@ -125,6 +140,17 @@
 			<span class="state">{cloud.text}</span>
 		</span>
 	</p>
+
+	{#if canRemote || hasRemote}
+		<div class="remote">
+			{#if canRemote && plans.length === 1}
+				<RemoteBackup {repo} planId={plans[0].id} planName={plans[0].name} {device} {now} />
+			{:else}
+				{#if canRemote}<a class="btn btn-sm" href="{href}#copias">Copiar ahora…</a>{/if}
+				{#each plans as p (p.id)}<RemoteBackup {repo} planId={p.id} planName={p.name} {device} {now} statusOnly />{/each}
+			{/if}
+		</div>
+	{/if}
 
 	<footer class="foot">
 		{#if repo.protection && prot}
@@ -243,6 +269,13 @@
 	.cloud.tone-neutral .state {
 		font-weight: 400;
 		color: var(--text-3);
+	}
+	.remote {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-2) var(--sp-3);
+		margin-top: calc(-1 * var(--sp-2));
 	}
 	.foot {
 		display: flex;

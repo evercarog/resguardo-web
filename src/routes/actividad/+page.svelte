@@ -6,6 +6,7 @@
 		CircleCheck,
 		CloudCheck,
 		CloudUpload,
+		Play,
 		History,
 		Inbox,
 		RefreshCw,
@@ -16,7 +17,7 @@
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatTime, startOfDay } from '$lib/format';
 	import { supabase } from '$lib/supabase';
-	import type { Device, Repo } from '$lib/types';
+	import type { Device, DeviceCommand, Repo } from '$lib/types';
 
 	// Actividad: lo que pasó en las copias (automáticas, versiones de otras
 	// herramientas, verificaciones y copias externas), agrupado por día.
@@ -34,7 +35,7 @@
 	};
 	type SnapRow = { device_id: string; repo_id: string; snapshot_id: string; time: string; duration_s: number | null; data_added: number | null };
 	type Result = 'ok' | 'warning' | 'error';
-	type Kind = 'run' | 'snapshot' | 'verify' | 'offsite' | 'verify_offsite' | 'restore_test';
+	type Kind = 'run' | 'snapshot' | 'verify' | 'offsite' | 'verify_offsite' | 'restore_test' | 'remote';
 
 	/** Una entrada de la línea de tiempo. */
 	interface Entry {
@@ -49,6 +50,10 @@
 		added: number | null;
 		/** Copia correcta sin cambios. */
 		unchanged?: boolean;
+		/** Texto del chip, si no es el del resultado (peticiones a distancia). */
+		label?: string;
+		/** Detalle bajo el destino (quién pidió la copia). */
+		note?: string;
 	}
 
 	type Period = 'today' | '7d' | '30d';
@@ -67,6 +72,8 @@
 
 	let runs = $state<RunRow[]>([]);
 	let snaps = $state<SnapRow[]>([]);
+	/** Copias pedidas a distancia en el periodo (si la tabla aún no existe, ninguna). */
+	let commands = $state<DeviceCommand[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 	/** Cuántas entradas se pintan (con muchos equipos, 30 días pueden ser miles). */
@@ -140,9 +147,17 @@
 						.range(a, z)
 				)
 			]);
+			const { data: cmds } = await supabase
+				.from('device_commands')
+				.select('*')
+				.in('device_id', ids)
+				.gte('requested_at', from)
+				.order('requested_at', { ascending: false })
+				.limit(1000);
 			if (mine !== request) return;
 			runs = r;
 			snaps = s;
+			commands = (cmds ?? []) as DeviceCommand[];
 		} catch (e) {
 			if (mine !== request) return;
 			error = friendlyError(e instanceof Error ? e.message : String(e));
@@ -248,6 +263,34 @@
 			}
 		}
 
+		// Copias pedidas a distancia («Copiar ahora» desde la web u otro equipo).
+		const REMOTE: Record<DeviceCommand['status'], { result: Result; label: string }> = {
+			pending: { result: 'ok', label: 'Pedida' },
+			claimed: { result: 'ok', label: 'En marcha' },
+			done: { result: 'ok', label: 'Hecha' },
+			failed: { result: 'error', label: 'Falló' },
+			rejected: { result: 'warning', label: 'Rechazada' },
+			expired: { result: 'warning', label: 'Caducó' }
+		};
+		for (const c of commands) {
+			if (!allowed.has(c.device_id)) continue;
+			const plan = repoOf({ device_id: c.device_id, repo_id: c.repo_id } as Entry)?.plans?.find((p) => p.id === c.plan_id);
+			const st = REMOTE[c.status];
+			out.push({
+				key: `remote|${c.id}`,
+				kind: 'remote',
+				time: c.requested_at,
+				result: st.result,
+				label: st.label,
+				device_id: c.device_id,
+				repo_id: c.repo_id,
+				message: c.message ?? (c.status === 'expired' ? 'El equipo no la recogió a tiempo.' : null),
+				duration: null,
+				added: null,
+				note: `«${plan?.name ?? c.plan_id}» · desde ${c.requested_from === 'web' ? 'la web' : c.requested_from}`
+			});
+		}
+
 		return out.sort((a, b) => ms(b.time) - ms(a.time));
 	});
 
@@ -281,9 +324,10 @@
 		verify: 'Verificación',
 		offsite: 'Subida a la nube',
 		verify_offsite: 'Verificación de la nube',
-		restore_test: 'Prueba de restauración'
+		restore_test: 'Prueba de restauración',
+		remote: 'Copia pedida a distancia'
 	};
-	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload, verify_offsite: CloudCheck, restore_test: ArchiveRestore };
+	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload, verify_offsite: CloudCheck, restore_test: ArchiveRestore, remote: Play };
 	const RESULT_LABEL: Record<Result, string> = { ok: 'Correcta', warning: 'Con avisos', error: 'Falló' };
 	const RESULT_ICON = { ok: CircleCheck, warning: TriangleAlert, error: CircleAlert };
 	/** Tono del sistema de diseño de cada resultado. */
@@ -410,10 +454,10 @@
 											{#if e.kind === 'snapshot'}
 												<span class="faint small">a mano u otra herramienta</span>
 											{:else}
-												<span class="badge badge-sm tone-{TONE[e.result]}"><ResultIcon size={12} aria-hidden="true" />{e.unchanged ? 'Sin cambios' : RESULT_LABEL[e.result]}</span>
+												<span class="badge badge-sm tone-{TONE[e.result]}"><ResultIcon size={12} aria-hidden="true" />{e.label ?? (e.unchanged ? 'Sin cambios' : RESULT_LABEL[e.result])}</span>
 											{/if}
 										</div>
-										<span class="faint where">{repo?.name ?? e.repo_id} · {deviceName(e.device_id)}</span>
+										<span class="faint where">{repo?.name ?? e.repo_id} · {deviceName(e.device_id)}{e.note ? ` · ${e.note}` : ''}</span>
 										{#if e.result !== 'ok' && e.message}
 											<span class="msg">{e.message}</span>
 										{/if}

@@ -212,7 +212,7 @@
 
 		<ProtectionPanel {repo} {now} />
 
-		{#if repo.plans?.length}<PlansPanel plans={repo.plans} {now} />{/if}
+		{#if repo.plans?.length}<PlansPanel {repo} {device} {now} />{/if}
 
 		<MaintenancePanel {repo} {now} />
 
