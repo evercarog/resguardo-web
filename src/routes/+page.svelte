@@ -1,24 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		CircleAlert,
-		CircleCheck,
-		CloudOff,
-		Clock,
-		Monitor,
-		MoreHorizontal,
-		Plus,
-		RefreshCw,
-		TriangleAlert,
-		Wifi,
-		WifiOff
-	} from '@lucide/svelte';
+	import { CircleAlert, Monitor, MoreHorizontal, Plus } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
-	import RepoCard, { type DayMark } from '$lib/components/RepoCard.svelte';
+	import RepoCard from '$lib/components/RepoCard.svelte';
+	import SummaryHero from '$lib/components/SummaryHero.svelte';
+	import { urgentItems } from '$lib/attention';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
-	import { dayKey, formatDate, formatRelative, startOfDay } from '$lib/format';
-	import { HOLD_ADVICE, LEVEL_ORDER, deviceOnline, holdSummary, repoStatus, type Level } from '$lib/status';
+	import { dayKey, formatBytes, formatDate, formatDayShort, formatRelative, startOfDay } from '$lib/format';
+	import {
+		LEVEL_ORDER,
+		dayState,
+		dayStateLabel,
+		deviceOnline,
+		lastCheck,
+		repoStatus,
+		runningSince,
+		taskRunning,
+		type DayCell,
+		type Level
+	} from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device } from '$lib/types';
 
@@ -29,7 +30,8 @@
 	let dialog = $state<{ kind: 'rename' | 'remove'; device: Device } | null>(null);
 
 	/** Últimos 14 días por destino ("equipo|destino" → día → marcas), en dos consultas por carga. */
-	let history = $state<Map<string, Map<string, { n: number; same: boolean; failed: boolean }>> | null>(null);
+	type DayMarks = { n: number; same: boolean; failed: boolean; warned: boolean };
+	let history = $state<Map<string, Map<string, DayMarks>> | null>(null);
 
 	/** El servidor entrega como mucho 1000 filas por consulta: se piden por páginas. */
 	async function pages<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>) {
@@ -56,20 +58,21 @@
 					(a, z) => supabase.from('runs').select('*').gte('started_at', from).order('started_at').range(a, z)
 				)
 			]);
-			const out = new Map<string, Map<string, { n: number; same: boolean; failed: boolean }>>();
+			const out = new Map<string, Map<string, DayMarks>>();
 			const mark = (dev: string, repo: string, iso: string) => {
 				const k = `${dev}|${repo}`;
 				let m = out.get(k);
 				if (!m) out.set(k, (m = new Map()));
 				const day = dayKey(new Date(iso));
 				let v = m.get(day);
-				if (!v) m.set(day, (v = { n: 0, same: false, failed: false }));
+				if (!v) m.set(day, (v = { n: 0, same: false, failed: false, warned: false }));
 				return v;
 			};
 			for (const x of snaps) mark(x.device_id, x.repo_id, x.time).n++;
 			for (const x of runs) {
 				const v = mark(x.device_id, x.repo_id, x.finished_at ?? x.started_at);
 				if (x.result === 'error') v.failed = true;
+				else if (x.result === 'warning') v.warned = true;
 				else if (x.unchanged) v.same = true;
 			}
 			history = out;
@@ -80,14 +83,15 @@
 	}
 
 	/** Las 14 casillas (de hace 13 días a hoy) de un destino. */
-	function daysOf(deviceId: string, repoId: string): DayMark[] | null {
+	function daysOf(deviceId: string, repoId: string): DayCell[] | null {
 		if (!history) return null;
 		const m = history.get(`${deviceId}|${repoId}`);
 		return Array.from({ length: 14 }, (_, i) => {
 			const date = startOfDay(now, -(13 - i));
 			const key = dayKey(date);
-			const v = m?.get(key);
-			return { key, date, n: v?.n ?? 0, same: v?.same ?? false, failed: v?.failed ?? false };
+			const v = m?.get(key) ?? { n: 0, same: false, failed: false, warned: false };
+			const state = dayState(v);
+			return { key, date, state, n: v.n, title: `${formatDayShort(date)}: ${dayStateLabel(state, v.n)}` };
 		});
 	}
 
@@ -129,18 +133,26 @@
 			// Dentro de cada equipo, lo más grave primero.
 			.sort((a, b) => rank(a) - rank(b) || a.repo.name.localeCompare(b.repo.name))
 	);
-	const count = (levels: Level[]) => repoRows.filter((r) => levels.includes(r.status.level)).length;
-	const offline = $derived(db.devices.filter((d) => !d.revoked_at && !deviceOnline(d, now)).length);
-	// Los destinos en pausa no cuentan como atrasados.
-	/** Subidas a la nube frenadas por un cambio inusual (posible ransomware). */
-	const held = $derived(
-		db.repos
-			.filter((r) => r.offsite_hold && !db.devices.find((d) => d.id === r.device_id)?.revoked_at)
-			.map((r) => ({ repo: r, hold: r.offsite_hold!, device: db.devices.find((d) => d.id === r.device_id) ?? null }))
-	);
-	const attention = $derived(count(['failed', 'overdue', 'late']) + offline + held.length);
-	const paused = $derived(count(['paused']));
-	const updated = $derived(db.updatedAt ? `actualizado ${formatRelative(db.updatedAt, now)}` : '');
+	/** Lo urgente, ordenado (los destinos en pausa no cuentan como atrasados). */
+	const urgent = $derived(urgentItems(db.repos, db.devices, db.clients, now));
+	const liveDevices = $derived(db.devices.filter((d) => !d.revoked_at));
+	const liveRepos = $derived(db.repos.filter((r) => liveDevices.some((d) => d.id === r.device_id)));
+	/** «4 equipos · 7 destinos · 2,1 TB protegidos · última copia hace 12 min». */
+	const summary = $derived.by(() => {
+		const nd = liveDevices.length;
+		const nr = liveRepos.length;
+		const bytes = liveRepos.reduce((n, r) => n + (r.last_total_bytes ?? 0), 0);
+		const last = Math.max(0, ...liveRepos.map((r) => lastCheck(r).at ?? 0));
+		const parts = [`${nd} ${nd === 1 ? 'equipo' : 'equipos'}`, `${nr} ${nr === 1 ? 'destino' : 'destinos'}`];
+		if (bytes) parts.push(`${formatBytes(bytes)} protegidos`);
+		if (last) parts.push(`última copia ${formatRelative(last, now)}`);
+		return parts.join(' · ');
+	});
+	const runningText = $derived.by(() => {
+		const n = liveRepos.filter((r) => runningSince(r, now) || taskRunning(r, now)).length;
+		return n ? `En marcha ahora en ${n} ${n === 1 ? 'destino' : 'destinos'}` : '';
+	});
+	const updated = $derived(db.updatedAt ? `Actualizado ${formatRelative(db.updatedAt, now)}` : '');
 
 	/** Equipos agrupados por cliente; lo que necesita atención, primero. */
 	const groups = $derived.by(() => {
@@ -224,144 +236,92 @@
 <svelte:head><title>Estado · Resguardo</title></svelte:head>
 
 <div class="page">
-	<header class="head">
-		<div>
-			<h1>Estado</h1>
-			<p class="faint">
-				{#if !db.loaded}
-					{db.error ? '' : 'Cargando…'}
-				{:else}
-					{#if attention}
-						<span class="attn">{attention} {attention === 1 ? 'cosa necesita' : 'cosas necesitan'} tu atención</span>
-					{:else if db.devices.length}
-						<span class="calm">Todo en orden</span>
-					{:else}
-						Aún no hay equipos vinculados
-					{/if}
-					{#if updated}<span title={db.updatedAt ? formatDate(new Date(db.updatedAt).toISOString()) : ''}> · {updated}</span>{/if}
-				{/if}
-			</p>
-		</div>
-		<button class="btn btn-sm" onclick={refresh} disabled={refreshing}>
-			<span class:spin={refreshing} style="display:grid"><RefreshCw size={14} /></span> Actualizar
-		</button>
-	</header>
-
 	{#if db.error}
-		<div class="notice notice-danger"><CircleAlert size={16} /><p>{db.error}</p></div>
+		<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{db.error}</p></div>
 	{/if}
 
-	{#each held as h (`${h.repo.device_id}|${h.repo.repo_id}`)}
-		<div class="notice notice-danger hold" role="alert">
-			<CloudOff size={18} />
-			<div>
-				<p>
-					<strong>Cambio inusual en «{h.repo.name}»{h.device ? ` (${h.device.name})` : ''}.</strong>
-					{holdSummary(h.hold, now)} La subida a la nube está frenada.
-				</p>
-				<p class="advice">{HOLD_ADVICE}</p>
-				<a class="btn btn-sm" href="/repo/{h.repo.device_id}/{encodeURIComponent(h.repo.repo_id)}">Ver el destino</a>
-			</div>
-		</div>
-	{/each}
-
 	{#if db.loaded && db.devices.length}
-		<div class="counts">
-			<div class="count ok"><CircleCheck size={18} /><strong>{count(['ok'])}</strong><span>Al día{paused ? ` · ${paused} en pausa` : ''}</span></div>
-			<div class="count late"><Clock size={18} /><strong>{count(['late'])}</strong><span>Con retraso</span></div>
-			<div class="count bad"><TriangleAlert size={18} /><strong>{count(['overdue', 'failed'])}</strong><span>Atrasadas o fallidas</span></div>
-			<div class="count off"><WifiOff size={18} /><strong>{offline}</strong><span>Equipos sin conexión</span></div>
-		</div>
+		<SummaryHero items={urgent} {summary} running={runningText} {updated} {refreshing} onrefresh={refresh} />
 
 		<PushCard placement="top" />
 
 		{#each groups as g (g.client?.id ?? 'none')}
-			<section class="group">
-				<h2>{g.client?.name ?? 'Sin cliente'}</h2>
-				<div class="devices">
-					{#each g.devices as d, i (d.id)}
-						{@const online = deviceOnline(d, now)}
-						{@const repos = repoRows.filter((r) => r.repo.device_id === d.id)}
-						<article class="card device" style:--i={i}>
-							<header class="dev-head">
-								<span class="dev-icon"><Monitor size={17} /></span>
-								<div class="dev-name">
-									<strong>{d.name}</strong>
+			<section class="group" aria-labelledby="cliente-{g.client?.id ?? 'sin'}">
+				<h2 class="overline" id="cliente-{g.client?.id ?? 'sin'}">
+					{g.client?.name ?? 'Sin cliente'} <span class="cnt">· {g.devices.length} {g.devices.length === 1 ? 'equipo' : 'equipos'}</span>
+				</h2>
+				{#each g.devices as d (d.id)}
+					{@const online = deviceOnline(d, now)}
+					{@const repos = repoRows.filter((r) => r.repo.device_id === d.id)}
+					<div class="device" id="equipo-{d.id}">
+						<header class="dev-head">
+							<div class="dev-name">
+								<h3>{d.name}</h3>
+								<span class="dev-meta">
+									<span class="conn tone-{online ? 'ok' : 'bad'}" title={d.last_seen_at ? formatDate(d.last_seen_at) : ''}>
+										<span class="dot" aria-hidden="true"></span>
+										{online ? 'Conectado' : d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at, now)}` : 'Nunca conectado'}
+									</span>
 									<span class="faint">{d.os ?? ''}{d.app_version ? ` · v${d.app_version}` : ''}</span>
 									{#if d.app_version && newest && versionLess(d.app_version, newest)}
-										<span class="old-version" title="La versión más reciente en tus equipos es la {newest}">Actualizar a {newest}</span>
+										<span class="badge badge-sm tone-warn" title="La versión más reciente en tus equipos es la {newest}">Actualizar a {newest}</span>
 									{/if}
-									<!-- En el celular, la conexión va aquí, bajo el nombre -->
-									<span class="conn conn-short" class:online>
-										{#if online}<Wifi size={12} /> Conectado{:else}<WifiOff size={12} />
-											{d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at, now)}` : 'Nunca conectado'}{/if}
-									</span>
-								</div>
-								<span class="conn conn-long" class:online title={d.last_seen_at ? formatDate(d.last_seen_at) : ''}>
-									{#if online}<Wifi size={13} /> Conectado{:else}<WifiOff size={13} />
-										{d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at, now)}` : 'Nunca conectado'}{/if}
 								</span>
-								<div class="menu-wrap">
-									<button
-										class="icon-btn"
-										title="Opciones"
-										aria-label="Opciones de {d.name}"
-										aria-expanded={menu === d.id}
-										aria-controls="menu-{d.id}"
-										onclick={() => (menu = menu === d.id ? null : d.id)}><MoreHorizontal size={16} /></button
-									>
-									{#if menu === d.id}
-										<div class="menu card" id="menu-{d.id}">
-											<button onclick={() => openDialog('rename', d)}>Cambiar nombre</button>
-											<label>
-												Cliente
-												<select class="input" value={d.client_id ?? ''} onchange={(e) => moveDevice(d, e.currentTarget.value)}>
-													<option value="">Sin cliente</option>
-													{#each db.clients as c}<option value={c.id}>{c.name}</option>{/each}
-												</select>
-											</label>
-											<button class="danger" onclick={() => openDialog('remove', d)}>Desvincular</button>
-										</div>
-									{/if}
-								</div>
-							</header>
+							</div>
+							<div class="menu-wrap">
+								<button
+									class="icon-btn"
+									title="Opciones"
+									aria-label="Opciones de {d.name}"
+									aria-expanded={menu === d.id}
+									aria-controls="menu-{d.id}"
+									onclick={() => (menu = menu === d.id ? null : d.id)}><MoreHorizontal size={16} /></button
+								>
+								{#if menu === d.id}
+									<div class="menu" id="menu-{d.id}">
+										<button onclick={() => openDialog('rename', d)}>Cambiar nombre</button>
+										<label>
+											Cliente
+											<select class="input" value={d.client_id ?? ''} onchange={(e) => moveDevice(d, e.currentTarget.value)}>
+												<option value="">Sin cliente</option>
+												{#each db.clients as c}<option value={c.id}>{c.name}</option>{/each}
+											</select>
+										</label>
+										<button class="danger" onclick={() => openDialog('remove', d)}>Desvincular</button>
+									</div>
+								{/if}
+							</div>
+						</header>
 
-							{#if repos.length === 0}
-								<p class="faint empty">Este equipo aún no tiene copias automáticas programadas.</p>
-							{:else}
-								<div class="dests">
-									{#each repos as { repo, status } (repo.repo_id)}
-										<RepoCard {repo} {status} device={d} days={daysOf(d.id, repo.repo_id)} {now} />
-									{/each}
-								</div>
-							{/if}
-						</article>
-					{/each}
-				</div>
+						{#if repos.length === 0}
+							<p class="none">Este equipo aún no tiene copias automáticas programadas.</p>
+						{:else}
+							<div class="dests">
+								{#each repos as { repo, status } (repo.repo_id)}
+									<RepoCard {repo} {status} device={d} days={daysOf(d.id, repo.repo_id)} {now} />
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
 			</section>
 		{/each}
 	{:else if !db.loaded && !db.error}
-		<!-- Esqueleto mientras llega la primera carga -->
-		<div class="counts" aria-hidden="true">
-			{#each { length: 4 } as _}
-				<div class="count skel-count"><span class="skel sk-ic"></span><span class="skel sk-num"></span><span class="skel sk-txt"></span></div>
-			{/each}
+		<!-- Esqueleto con la forma del contenido -->
+		<div class="skel-hero" aria-hidden="true">
+			<span class="skel sk-ic"></span>
+			<div class="sk-lines"><span class="skel sk-h"></span><span class="skel sk-s"></span></div>
 		</div>
-		<div class="devices" aria-hidden="true">
+		<div class="dests" aria-hidden="true">
 			{#each { length: 2 } as _}
-				<div class="card device skel-device">
-					<div class="dev-head"><span class="skel sk-dev"></span><span class="skel sk-name"></span></div>
-					<span class="skel sk-row"></span>
-					<span class="skel sk-row"></span>
-				</div>
+				<div class="card skel-card"><span class="skel sk-t"></span><span class="skel sk-m"></span><span class="skel sk-b"></span></div>
 			{/each}
 		</div>
 		<span class="sr-only" role="status">Cargando…</span>
 	{:else if db.loaded}
-		<div class="empty-state card">
-			<Monitor size={28} />
-			<h2>Vincula tu primer equipo</h2>
-			<p class="muted">Genera un código aquí y escríbelo en Resguardo, en el equipo que quieras vigilar. Su estado aparecerá en esta página.</p>
+		<div class="empty-state">
+			<Monitor size={32} strokeWidth={1.5} />
+			<p>Vincula tu primer equipo para ver aquí el estado de sus copias.</p>
 			<a class="btn btn-primary" href="/vincular"><Plus size={16} /> Vincular un equipo</a>
 		</div>
 	{/if}
@@ -395,228 +355,112 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		gap: 18px;
+		gap: var(--sp-8);
 	}
-	.head {
+	.group {
 		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-	}
-	h1 {
-		font-size: 24px;
-		font-weight: 700;
-	}
-	.head p {
-		margin: 2px 0 0;
-		font-size: 13.5px;
-	}
-	.attn {
-		color: var(--text-2);
-		font-weight: 600;
-	}
-	.calm {
-		color: var(--success);
-		font-weight: 600;
-	}
-	/* Esqueletos de carga */
-	.skel-count,
-	.skel-device {
-		animation: none;
-	}
-	.skel-count {
-		row-gap: 6px;
-	}
-	.sk-ic {
-		width: 18px;
-		height: 18px;
-		border-radius: 50%;
-	}
-	.sk-num {
-		width: 32px;
-		height: 20px;
-	}
-	.sk-txt {
-		grid-column: 2;
-		width: 70%;
-		height: 11px;
-	}
-	.sk-dev {
-		flex: none;
-		width: 34px;
-		height: 34px;
-		border-radius: 9px;
-	}
-	.sk-name {
-		width: 45%;
-		height: 16px;
-	}
-	.sk-row {
-		height: 46px;
-		border-radius: var(--radius);
-	}
-	.counts {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 10px;
-	}
-	.count {
-		display: grid;
-		grid-template-columns: auto 1fr;
-		column-gap: 10px;
-		align-items: center;
-		padding: 12px 14px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-sm);
-		animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-	}
-	.count :global(svg) {
-		grid-row: span 2;
-	}
-	.count strong {
-		font-family: var(--font-display);
-		font-size: 22px;
-		line-height: 1.1;
-		color: var(--text);
-	}
-	.count span {
-		font-size: 12px;
-		color: var(--text-3);
-	}
-	.count.ok {
-		color: var(--success);
-	}
-	.count.late {
-		color: var(--warn);
-	}
-	.count.bad {
-		color: var(--danger);
-	}
-	.count.off {
-		color: var(--text-3);
+		flex-direction: column;
+		gap: var(--sp-6);
 	}
 	.group h2 {
-		margin-bottom: 10px;
-		font-size: 13px;
-		font-weight: 650;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: var(--text-3);
+		margin-bottom: calc(-1 * var(--sp-2));
 	}
-	.devices {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-	}
-	/* Destinos del equipo: tarjetas grandes, 2 por fila (1 en pantallas estrechas). */
-	.dests {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 12px;
-		align-items: start;
-	}
-	@media (max-width: 860px) {
-		.dests {
-			grid-template-columns: minmax(0, 1fr);
-		}
+	.cnt {
+		font-weight: 500;
+		letter-spacing: 0.02em;
+		text-transform: none;
 	}
 	.device {
-		padding: 14px 16px;
-		background: var(--surface-2);
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		animation: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-		animation-delay: calc(var(--i) * 40ms);
+		gap: var(--sp-3);
+		scroll-margin-top: calc(var(--header-h) + 16px);
 	}
 	.dev-head {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-	}
-	.dev-icon {
-		display: grid;
-		place-items: center;
-		width: 34px;
-		height: 34px;
-		flex: none;
-		border-radius: 9px;
-		color: var(--text-2);
-		background: var(--surface-3);
+		justify-content: space-between;
+		gap: var(--sp-3);
 	}
 	.dev-name {
 		display: flex;
 		flex-direction: column;
+		gap: 2px;
 		min-width: 0;
-		flex: 1;
 	}
-	.dev-name strong {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	h3 {
+		font-size: var(--fs-h2);
+		line-height: var(--lh-h2);
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		overflow-wrap: anywhere;
 	}
-	.dev-name .faint {
-		font-size: 12px;
+	.dev-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px var(--sp-3);
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 	.conn {
 		display: inline-flex;
 		align-items: center;
-		gap: 5px;
-		flex: none;
-		font-size: 12px;
-		font-weight: 600;
+		gap: 6px;
+		color: var(--text-2);
+	}
+	.dests {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--sp-4);
+		align-items: stretch;
+	}
+	.none {
+		font-size: var(--fs-sm);
 		color: var(--text-3);
-	}
-	.conn.online {
-		color: var(--success);
-	}
-	.conn-short {
-		display: none;
 	}
 	.menu-wrap {
 		position: relative;
 	}
 	.menu {
 		position: absolute;
+		top: 36px;
 		right: 0;
-		top: 32px;
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
-		width: 210px;
+		gap: 2px;
+		width: 220px;
 		padding: 6px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-md);
 	}
 	.menu button {
 		padding: 8px 10px;
 		font: inherit;
-		font-size: 13px;
 		text-align: left;
-		color: var(--text);
+		color: var(--text-1);
 		background: none;
 		border: none;
 		border-radius: var(--radius-sm);
 		cursor: pointer;
 	}
 	.menu button:hover {
-		background: var(--surface-3);
+		background: var(--surface-2);
 	}
 	.menu .danger {
-		color: var(--danger);
+		color: var(--bad);
 	}
 	.menu label {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 		padding: 4px 10px 8px;
-		font-size: 12px;
+		font-size: var(--fs-xs);
+		font-weight: 500;
 		color: var(--text-3);
-	}
-	.menu select {
-		height: 30px;
-		font-size: 13px;
 	}
 	@media (pointer: coarse) {
 		.menu {
@@ -625,80 +469,63 @@
 		.menu button {
 			min-height: 44px;
 		}
-		.menu select {
-			height: 44px;
-		}
 	}
-	.empty {
-		margin: 0;
-		font-size: 13px;
-	}
-	.hold {
-		border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-	}
-	.hold > div {
+	/* Esqueletos */
+	.skel-hero {
 		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 8px;
+		gap: var(--sp-4);
+		padding: var(--sp-8);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-xl);
 	}
-	.hold .advice {
-		font-size: 12.5px;
-		color: var(--text-2);
+	.sk-ic {
+		flex: none;
+		width: 44px;
+		height: 44px;
+		border-radius: 999px;
 	}
-	.empty-state {
+	.sk-lines {
 		display: flex;
+		flex: 1;
 		flex-direction: column;
-		align-items: center;
 		gap: 10px;
-		padding: 40px 24px;
-		text-align: center;
-		color: var(--text-3);
 	}
-	.empty-state h2 {
-		color: var(--text);
-		font-size: 18px;
+	.sk-h {
+		width: 40%;
+		height: 30px;
 	}
-	.empty-state p {
-		max-width: 420px;
-		margin: 0 0 8px;
-		line-height: 1.55;
+	.sk-s {
+		width: 60%;
+		height: 14px;
+	}
+	.skel-card {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: var(--sp-5);
+	}
+	.sk-t {
+		width: 45%;
+		height: 18px;
+	}
+	.sk-m {
+		width: 70%;
+		height: 12px;
+	}
+	.sk-b {
+		height: 56px;
+	}
+	@media (max-width: 860px) {
+		.dests {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 	@media (max-width: 720px) {
-		.device {
-			padding: 12px 10px;
+		.page {
+			gap: var(--sp-6);
 		}
-		h1 {
-			font-size: 22px;
+		.skel-hero {
+			padding: var(--sp-5);
 		}
-		.counts {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-		.devices {
-			grid-template-columns: 1fr;
-		}
-		.conn-long {
-			display: none;
-		}
-		.conn-short {
-			display: inline-flex;
-			font-size: 11.5px;
-		}
-		/* 16px evita el zoom de iOS al tocar el selector de cliente */
-		.menu select {
-			font-size: 16px;
-		}
-	}
-	.old-version {
-		display: inline-block;
-		align-self: flex-start;
-		margin-top: 2px;
-		padding: 0 7px;
-		font-size: 11px;
-		font-weight: 600;
-		line-height: 18px;
-		border-radius: 999px;
-		color: var(--warn);
-		background: color-mix(in srgb, var(--warn) 12%, transparent);
 	}
 </style>

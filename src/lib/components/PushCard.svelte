@@ -148,59 +148,65 @@
 	.push {
 		display: flex;
 		align-items: center;
-		gap: 14px;
-		padding: 14px 16px;
+		gap: var(--sp-4);
+		padding: var(--sp-4) var(--sp-5);
 	}
 	.push.compact {
-		gap: 12px;
-		padding: 10px 14px;
+		gap: var(--sp-3);
+		padding: var(--sp-3) var(--sp-4);
+		background: transparent;
+		border-style: dashed;
 	}
 	.ic {
 		display: grid;
-		place-items: center;
 		flex: none;
-		width: 38px;
-		height: 38px;
-		border-radius: 10px;
-		color: var(--text-3);
-		background: var(--surface-2, rgba(127, 127, 127, 0.1));
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		color: var(--text-2);
+		background: var(--surface-2);
+		border-radius: var(--radius);
 	}
 	.compact .ic {
 		width: 32px;
 		height: 32px;
-		border-radius: 8px;
 	}
 	.ic.on {
-		color: var(--accent-soft-text, var(--accent));
-		background: var(--accent-soft, rgba(127, 127, 127, 0.1));
+		color: var(--accent-text);
+		background: var(--accent-soft);
 	}
 	.text {
 		display: flex;
+		flex: 1;
 		flex-direction: column;
 		gap: 2px;
 		min-width: 0;
-		flex: 1;
-		font-size: 13.5px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+	}
+	.text strong {
+		font-size: var(--fs-body);
+		font-weight: 500;
 	}
 	.text .faint {
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
 	}
 	.compact .text {
-		font-size: 13px;
+		font-size: var(--fs-sm);
 	}
 	.compact .text .faint {
-		font-size: 12px;
+		font-size: var(--fs-xs);
 	}
 	.ok {
-		color: var(--success, green);
-		font-size: 12.5px;
+		color: var(--ok);
+		font-size: var(--fs-sm);
 	}
 	.err {
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		color: var(--danger, crimson);
-		font-size: 12.5px;
+		color: var(--bad);
+		font-size: var(--fs-sm);
 	}
 	.actions {
 		display: flex;

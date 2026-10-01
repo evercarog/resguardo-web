@@ -1,279 +1,143 @@
-<script lang="ts" module>
-	/** Un día de la tira de los últimos 14 días. */
-	export interface DayMark {
-		key: string;
-		date: Date;
-		/** Versiones creadas ese día. */
-		n: number;
-		/** Copia correcta sin cambios (sin versión). */
-		same: boolean;
-		/** Alguna copia falló ese día. */
-		failed: boolean;
-	}
-</script>
-
 <script lang="ts">
-	import { ArrowRight, CalendarClock, CircleCheck, CirclePause, Clock, CloudOff, CloudUpload, HardDrive, Hand, LoaderCircle, ShieldCheck } from '@lucide/svelte';
+	import { CircleAlert, CirclePause, Cloud, CloudOff, LoaderCircle, TriangleAlert } from '@lucide/svelte';
+	import DaySquares from '$lib/components/DaySquares.svelte';
 	import ProtectionRing from '$lib/components/ProtectionRing.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
-	import RunResult from '$lib/components/RunResult.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
-	import { dayKey, formatBytes, formatDate, formatDayShort, formatDuration, formatNumber, formatTime, startOfDay } from '$lib/format';
+	import { dayKey, formatBytes, formatDate, formatNumber, formatTime, startOfDay } from '$lib/format';
 	import {
 		OFFSITE_PROVIDERS,
 		chipLevel,
-		deviceOnline,
 		elapsedLabel,
-		holdSummary,
 		kindLabel,
 		nextExpected,
-		offsiteScheduleLabel,
-		offsiteVerifySummary,
 		pauseUntilLabel,
-		planScheduleLabel,
 		protectionSummary,
-		restoreTestLabel,
 		repoScheduleLabel,
 		repoStatus,
 		runningSince,
-		scheduleLabel,
 		taskRunning,
-		verifyModeLabel
+		type DayCell
 	} from '$lib/status';
 	import type { Device, Repo } from '$lib/types';
 
-	// Tarjeta de un destino en Estado: copias locales, nube, verificación y planes.
+	// Tarjeta de un destino en Estado (diseño común): tranquila, cuatro datos como
+	// mucho. Nombre y estado; lo que haya que saber ya (fallo, retraso, pausa,
+	// copia en curso); última versión, próxima y versiones; la nube; la
+	// protección compacta y los 14 días. El detalle está en la página del destino.
 	let {
 		repo,
 		status,
 		device,
 		days,
 		now
-	}: { repo: Repo; status: ReturnType<typeof repoStatus>; device: Device | null; days: DayMark[] | null; now: number } = $props();
+	}: { repo: Repo; status: ReturnType<typeof repoStatus>; device: Device | null; days: DayCell[] | null; now: number } = $props();
 
 	const level = $derived(chipLevel(repo, status.level));
-	/** Prefijo único para los id de las secciones (aria-labelledby). */
-	const uid = $derived(`rc-${repo.device_id}-${repo.repo_id}`.replace(/[^A-Za-z0-9_-]/g, '_'));
 	const href = $derived(`/repo/${repo.device_id}/${encodeURIComponent(repo.repo_id)}`);
-	const online = $derived(device ? deviceOnline(device, now) : false);
 	const running = $derived(runningSince(repo, now));
 	const task = $derived(taskRunning(repo, now));
 	const next = $derived(status.pause.active ? null : nextExpected(repo, now));
 	const off = $derived(repo.maintenance?.offsite ?? null);
-	const verify = $derived(repo.maintenance?.verify ?? null);
-	const restoreTest = $derived(repo.maintenance?.restore_test ?? null);
-	const cloudVerify = $derived(offsiteVerifySummary(repo, now));
-	const target = $derived(off ? (off.target_name ?? OFFSITE_PROVIDERS[off.provider] ?? 'Otra ubicación') : '');
+	const prot = $derived(repo.protection ? protectionSummary(repo.protection) : null);
 
-	/** ¿La nube tiene ya la última versión local? */
+	/** La nube en una línea: dónde y cómo va. */
 	const cloud = $derived.by(() => {
+		if (!off) return { tone: 'neutral', text: 'Sin copia externa', where: '' };
+		const where = off.target_name ?? OFFSITE_PROVIDERS[off.provider] ?? 'Otra ubicación';
+		if (repo.offsite_hold) return { tone: 'bad', text: 'Subida frenada por un cambio inusual', where };
+		if (repo.offsite_run?.result === 'error') return { tone: 'bad', text: 'La última subida falló', where };
 		const up = repo.offsite_run?.finished ? new Date(repo.offsite_run.finished).getTime() : null;
 		const local = repo.last_snapshot_at ? new Date(repo.last_snapshot_at).getTime() : null;
-		if (up === null) return { ok: false, text: 'todavía no se ha subido nada' };
-		if (local === null || up >= local) return { ok: true, text: 'al día con la copia local' };
-		return { ok: false, text: `pendiente: ${elapsedLabel((local - up) / 3_600_000)} de diferencia` };
+		if (up === null) return { tone: 'warn', text: 'Todavía sin ninguna subida', where };
+		if (local === null || up >= local) return { tone: 'ok', text: 'Al día', where };
+		return { tone: 'warn', text: `Pendiente · ${elapsedLabel((local - up) / 3_600_000)} por detrás`, where };
 	});
 
-	/** «hoy a las 17:00», «mañana a las 17:00» o la fecha, para la próxima copia (días de Bogotá). */
+	/** «hoy a las 17:00», «mañana a las 17:00» o la fecha (días de Bogotá). */
 	function nextLabel(d: Date) {
-		if (dayKey(d) === dayKey(now)) return `hoy a las ${formatTime(d)}`;
-		if (dayKey(d) === dayKey(startOfDay(now, 1))) return `mañana a las ${formatTime(d)}`;
+		if (dayKey(d) === dayKey(now)) return `hoy, ${formatTime(d)}`;
+		if (dayKey(d) === dayKey(startOfDay(now, 1))) return `mañana, ${formatTime(d)}`;
 		return formatDate(d);
 	}
-
-	function dayTitle(d: DayMark) {
-		const what = d.n
-			? `${d.n} ${d.n === 1 ? 'versión' : 'versiones'}`
-			: d.failed
-				? 'falló'
-				: d.same
-					? 'sin cambios'
-					: 'sin versiones';
-		return `${formatDayShort(d.date)}: ${what}`;
-	}
-	const maxDay = $derived(Math.max(1, ...(days ?? []).map((d) => d.n)));
 </script>
 
-<article class="card dest lvl-{level}">
+<article class="card dest" class:held={!!repo.offsite_hold}>
 	<header class="top">
 		<div class="title">
 			<h3><a {href}>{repo.name}</a></h3>
-			<span class="faint sub">
-				<span class="dot" class:online aria-hidden="true"></span>
-				<span class="sr-only">{online ? 'Equipo conectado:' : 'Equipo sin conexión:'}</span>
-				<span title={online ? 'Conectado' : 'Sin conexión'}>{device?.name ?? 'Equipo'}</span> · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''}
-			</span>
+			<p class="meta">{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''}</p>
 		</div>
 		<StatusChip {level} />
 	</header>
 
-	{#if repo.protection}
-		{@const prot = protectionSummary(repo.protection)}
-		<a
-			class="prot tone-{prot.tone}"
-			href="{href}#proteccion"
-			title={repo.protection.items
-				.filter((i) => i.state !== 'ok')
-				.map((i) => `${i.label}: ${i.detail ?? ''}`)
-				.join('\n')}
-		>
-			<ProtectionRing protection={repo.protection} />
-			<span>Protección <strong>{repo.protection.score} de {repo.protection.total}</strong> · {prot.issues ? `${prot.issues} por revisar` : 'todo en orden'}</span>
-		</a>
-	{/if}
-
+	<!-- Lo que hay que saber ya -->
 	{#if running}
-		<p class="runline"><span class="spin"><LoaderCircle size={13} aria-hidden="true" /></span> Copiando ahora · desde las {formatTime(running.toISOString())}</p>
+		<p class="alert tone-info"><span class="spin"><LoaderCircle size={14} aria-hidden="true" /></span> Copiando ahora · desde las {formatTime(running)}</p>
+	{/if}
+	{#if task}
+		<TaskProgress {repo} {device} {now} />
+	{/if}
+	{#if repo.offsite_hold}
+		<p class="alert tone-bad"><CloudOff size={14} aria-hidden="true" /> Subida a la nube frenada: hay un cambio inusual por revisar.</p>
 	{/if}
 	{#if status.level === 'failed' && repo.last_run?.message}
-		<p class="err">{repo.last_run.message}</p>
+		<p class="alert tone-bad"><CircleAlert size={14} aria-hidden="true" /> {repo.last_run.message}</p>
 	{:else if (status.level === 'late' || status.level === 'overdue') && status.since !== null}
-		<p class="warnline">{elapsedLabel(status.since - status.expected)} de retraso</p>
-	{/if}
-	{#if repo.offsite_hold && !off}
-		<p class="err hold">
-			<CloudOff size={13} aria-hidden="true" />
-			<span><strong>Subida frenada:</strong> {holdSummary(repo.offsite_hold, now)} Revísalo en Resguardo.</span>
+		<p class="alert tone-{status.level === 'late' ? 'warn' : 'bad'}">
+			<TriangleAlert size={14} aria-hidden="true" />
+			{status.level === 'late' ? `${elapsedLabel(status.since - status.expected)} de retraso` : `Sin copias desde hace ${elapsedLabel(status.since)}`}
 		</p>
 	{/if}
 	{#if status.pause.active}
-		<p class="pauseline"><CirclePause size={13} aria-hidden="true" /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
+		<p class="alert tone-paused"><CirclePause size={14} aria-hidden="true" /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
 	{/if}
 
-	<!-- Copia local -->
-	<section class="sec" aria-labelledby="{uid}-local">
-		<h4 class="section-title" id="{uid}-local"><HardDrive size={14} aria-hidden="true" /> Copia local</h4>
-		<div class="facts">
-			<div>
-				<span class="k">Última versión</span>
-				{#if status.last}
-					<span class="v"><RelTime iso={status.last} {now} /></span>
-					<span class="faint small">
-						{[repo.last_data_added != null ? `+${formatBytes(repo.last_data_added)}` : null, repo.last_duration_s != null ? formatDuration(repo.last_duration_s) : null]
-							.filter(Boolean)
-							.join(' · ')}
-					</span>
-				{:else}
-					<span class="v faint">todavía ninguna</span>
-				{/if}
-			</div>
-			<div>
-				<span class="k">Próxima</span>
-				<span class="v" title={next ? formatDate(next.toISOString()) : undefined}>{status.pause.active ? 'en pausa' : next ? nextLabel(next) : '—'}</span>
-				<span class="faint small">{repoScheduleLabel(repo)}</span>
-			</div>
-			<div>
-				<span class="k">Versiones</span>
-				<span class="v">{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</span>
-				<span class="faint small">{repo.last_total_bytes != null ? `${formatBytes(repo.last_total_bytes)} protegidos` : 'nada guardado todavía'}</span>
-			</div>
+	<dl class="facts">
+		<div>
+			<dt>Última versión</dt>
+			<dd>
+				{#if status.last}<RelTime iso={status.last} {now} />{:else}<span class="faint">Todavía ninguna</span>{/if}
+			</dd>
+			{#if status.unchangedAt}
+				<dd class="sub">Revisada <RelTime iso={status.unchangedAt} {now} /> · sin cambios</dd>
+			{:else if repo.last_data_added != null}
+				<dd class="sub num">+{formatBytes(repo.last_data_added)}</dd>
+			{/if}
 		</div>
-		{#if status.unchangedAt}
-			<p class="faint small">Última revisión <RelTime iso={status.unchangedAt} {now} /> · sin cambios</p>
-		{/if}
-		{#if days}
-			<div class="strip" role="img" aria-label="Últimos 14 días: {days.filter((d) => d.n || d.same).length} con versión o revisión sin cambios">
-				{#each days as d (d.key)}
-					<span
-						class="d"
-						class:has={d.n > 0}
-						class:same={!d.n && d.same}
-						class:bad={!d.n && !d.same && d.failed}
-						style:--o={d.n ? 0.35 + 0.65 * (d.n / maxDay) : 1}
-						title={dayTitle(d)}
-					></span>
-				{/each}
-			</div>
-		{/if}
-	</section>
+		<div>
+			<dt>Próxima</dt>
+			<dd title={next ? formatDate(next) : undefined}>{status.pause.active ? 'En pausa' : next ? nextLabel(next) : '—'}</dd>
+			<dd class="sub">{repoScheduleLabel(repo)}</dd>
+		</div>
+		<div>
+			<dt>Versiones</dt>
+			<dd class="num">{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</dd>
+			<dd class="sub num">{repo.last_total_bytes != null ? `${formatBytes(repo.last_total_bytes)} protegidos` : 'Nada guardado todavía'}</dd>
+		</div>
+	</dl>
 
-	<!-- Nube (copia externa) -->
-	<section class="sec" aria-labelledby="{uid}-cloud">
-		<h4 class="section-title" id="{uid}-cloud">
-			<CloudUpload size={14} aria-hidden="true" /> Nube{#if off}<span class="target">· {target}</span>{/if}
-		</h4>
-		{#if off}
-			{#if repo.offsite_hold}
-				<p class="err hold">
-					<CloudOff size={13} aria-hidden="true" />
-					<span><strong>Subida frenada:</strong> {holdSummary(repo.offsite_hold, now)} Revísalo en Resguardo.</span>
-				</p>
-			{/if}
-			{#if task?.kind === 'offsite' || task?.kind === 'verify_offsite'}
-				<TaskProgress {repo} {device} {now} />
-			{/if}
-			<div class="line">
-				<span>Última subida: <RunResult run={repo.offsite_run} {now} empty="todavía ninguna" /></span>
-				{#if repo.offsite_run?.message}<span class="faint small msg">{repo.offsite_run.message}</span>{/if}
-			</div>
-			<div class="line small">
-				<span class="faint">{off.schedule ? offsiteScheduleLabel(off.schedule) : 'programada'}</span>
-				<span class="sync" class:ok={cloud.ok}>
-					{#if cloud.ok}<CircleCheck size={13} aria-hidden="true" />{:else}<Clock size={13} aria-hidden="true" />{/if}
-					{cloud.text}
-				</span>
-			</div>
-			{#if cloudVerify}
-				<p class="small vline v-{cloudVerify.result ?? 'none'}">
-					<ShieldCheck size={13} aria-hidden="true" />
-					<span>{cloudVerify.text}{#if cloudVerify.rotation}<br /><span class="faint">{cloudVerify.rotation}</span>{/if}</span>
-				</p>
-				{#if cloudVerify.message}<p class="err">{cloudVerify.message}</p>{/if}
-			{/if}
-		{:else}
-			<p class="faint small">Sin copia externa: todas las versiones están en un solo lugar.</p>
-		{/if}
-	</section>
-
-	<!-- Verificación -->
-	<section class="sec" aria-labelledby="{uid}-verify">
-		<h4 class="section-title" id="{uid}-verify"><ShieldCheck size={14} aria-hidden="true" /> Verificación</h4>
-		{#if task?.kind === 'verify' || task?.kind === 'restore_test'}
-			<TaskProgress {repo} {device} {now} />
-		{/if}
-		{#if verify}
-			<div class="line">
-				<RunResult run={repo.verify_run} {now} />
-				<span class="faint small">{verify.schedule ? scheduleLabel(verify.schedule) : 'programada'}</span>
-			</div>
-			<p class="faint small">{verifyModeLabel(verify, now)}</p>
-			{#if repo.verify_run?.result === 'error' && repo.verify_run.message}<p class="err">{repo.verify_run.message}</p>{/if}
-		{:else}
-			<p class="faint small">Sin verificación programada.</p>
-		{/if}
-		{#if restoreTest}
-			<div class="line">
-				<span>Prueba de restauración: <RunResult run={repo.restore_test_run} {now} /></span>
-				<span class="faint small">{restoreTest.schedule ? scheduleLabel(restoreTest.schedule) : 'programada'}</span>
-			</div>
-			<p class="faint small">{restoreTestLabel(restoreTest)}</p>
-			{#if repo.restore_test_run?.result === 'error' && repo.restore_test_run.message}<p class="err">{repo.restore_test_run.message}</p>{/if}
-		{/if}
-	</section>
-
-	<!-- Copias (planes) -->
-	{#if repo.plans?.length}
-		<section class="sec" aria-labelledby="{uid}-plans">
-			<h4 class="section-title" id="{uid}-plans"><CalendarClock size={14} aria-hidden="true" /> Copias</h4>
-			<ul class="plans">
-				{#each repo.plans as p (p.id)}
-					<li>
-						<span class="pname">
-							{#if !p.schedule}<Hand size={12} aria-hidden="true" />{/if}
-							<a href="{href}#copia-{encodeURIComponent(p.id)}"><strong>{p.name}</strong></a>
-							<span class="faint small">{p.schedule ? planScheduleLabel(p.schedule) : 'Solo a mano'}</span>
-						</span>
-						<span class="pres"><RunResult run={p.last_run} {now} /></span>
-						{#if p.last_run?.result === 'error' && p.last_run.message}<span class="err small pmsg">{p.last_run.message}</span>{/if}
-					</li>
-				{/each}
-			</ul>
-		</section>
-	{/if}
+	<p class="cloud tone-{cloud.tone}">
+		{#if off}<Cloud size={14} aria-hidden="true" />{:else}<CloudOff size={14} aria-hidden="true" />{/if}
+		<span class="cloud-text">
+			{#if cloud.where}<span class="faint">Nube · {cloud.where} ·</span>{/if}
+			<span class="state">{cloud.text}</span>
+		</span>
+	</p>
 
 	<footer class="foot">
-		<a class="more" {href}>Ver detalle <ArrowRight size={14} aria-hidden="true" /></a>
+		{#if repo.protection && prot}
+			<a class="prot" href="{href}#proteccion" title={repo.protection.items.filter((i) => i.state !== 'ok').map((i) => `${i.label}: ${i.detail ?? ''}`).join('\n')}>
+				<ProtectionRing protection={repo.protection} />
+				<span>Protección <strong class="num">{repo.protection.score} de {repo.protection.total}</strong>{prot.issues ? ` · ${prot.issues} por revisar` : ''}</span>
+			</a>
+		{:else}
+			<span></span>
+		{/if}
+		{#if days}
+			<DaySquares {days} size="mini" label="Últimos 14 días de {repo.name}" />
+		{/if}
 	</footer>
 </article>
 
@@ -281,274 +145,124 @@
 	.dest {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: var(--sp-4);
 		min-width: 0;
-		padding: 14px 16px 12px;
-		border-top: 3px solid var(--lvl, var(--border));
+		padding: var(--sp-5);
 	}
-	/* Subida frenada por un cambio inusual: todo el borde en rojo. */
-	.dest.lvl-held {
-		border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
-		border-top-color: var(--danger);
+	.dest:hover {
+		border-color: var(--border-strong);
+	}
+	.dest.held {
+		border-color: color-mix(in srgb, var(--bad) 30%, transparent);
 	}
 	.top {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 10px;
+		gap: var(--sp-3);
 	}
 	.title {
-		display: flex;
-		flex-direction: column;
 		min-width: 0;
 	}
 	h3 {
-		font-size: 15.5px;
-		font-weight: 650;
+		font-size: var(--fs-h2);
+		line-height: var(--lh-h2);
+		font-weight: 600;
+		letter-spacing: -0.01em;
 		overflow-wrap: anywhere;
 	}
 	h3 a {
-		color: inherit;
-		text-decoration: none;
+		color: var(--text-1);
 	}
-	h3 a:hover {
-		text-decoration: underline;
-	}
-	.sub {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font-size: 12px;
+	.meta {
+		margin-top: 2px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		color: var(--text-3);
 		overflow-wrap: anywhere;
 	}
-	.dot {
+	.alert {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin: calc(-1 * var(--sp-1)) 0 0;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		color: var(--tone);
+		overflow-wrap: anywhere;
+	}
+	.alert :global(svg) {
 		flex: none;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: var(--text-3);
-	}
-	.dot.online {
-		background: var(--success);
-	}
-	/* Salud de la protección (anillo + una línea), enlaza a la lista en el detalle. */
-	.prot {
-		display: inline-flex;
-		align-items: center;
-		align-self: flex-start;
-		gap: 7px;
-		font-size: 12.5px;
-		color: var(--text-2);
-		text-decoration: none;
-	}
-	.prot:hover span {
-		text-decoration: underline;
-	}
-	.prot strong {
-		color: var(--text);
-	}
-	.sec {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding-top: 10px;
-		border-top: 1px solid var(--border);
-	}
-	h4 {
-		overflow-wrap: anywhere;
-	}
-	/* El nombre del destino en la nube, tal cual (sin mayúsculas). */
-	.target {
-		font-weight: 600;
-		letter-spacing: 0;
-		text-transform: none;
+		margin-top: 2px;
 	}
 	.facts {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 10px;
+		gap: var(--sp-4);
+		margin: 0;
 	}
 	.facts > div {
-		display: flex;
-		flex-direction: column;
 		min-width: 0;
 	}
-	.k {
-		font-size: 11.5px;
+	dt {
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
+		font-weight: 500;
 		color: var(--text-3);
 	}
-	.v {
-		font-size: 13.5px;
-		font-weight: 600;
+	dd {
+		margin: 2px 0 0;
+		font-weight: 500;
 	}
-	.small {
-		font-size: 12px;
-	}
-	p {
-		margin: 0;
-	}
-	.strip {
-		display: grid;
-		grid-template-columns: repeat(14, minmax(0, 1fr));
-		gap: 3px;
-		max-width: 320px;
-	}
-	.d {
-		aspect-ratio: 1;
-		border-radius: 3px;
-		background: var(--surface-3);
-	}
-	.d.has {
-		background: color-mix(in srgb, var(--accent) calc(var(--o) * 100%), var(--surface-3));
-	}
-	/* Revisado sin cambios: neutro, con borde. */
-	.d.same {
-		box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, var(--surface-3));
-	}
-	.d.bad {
-		background: color-mix(in srgb, var(--danger) 55%, var(--surface-3));
-	}
-	.line {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 4px 10px;
-		font-size: 12.5px;
-	}
-	.vline {
-		display: flex;
-		align-items: flex-start;
-		gap: 6px;
-		color: var(--text-2);
-	}
-	.vline :global(svg) {
-		flex: none;
-		margin-top: 2px;
-	}
-	.vline.v-error {
-		color: var(--danger);
-	}
-	.vline.v-warning {
-		color: var(--warn);
-	}
-	.msg {
+	dd.sub {
+		margin-top: 0;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
+		font-weight: 400;
+		color: var(--text-3);
 		overflow-wrap: anywhere;
 	}
-	.sync {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		font-weight: 600;
-		color: var(--warn);
-	}
-	.sync.ok {
-		color: var(--success);
-	}
-	.plans {
-		display: flex;
-		flex-direction: column;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-	.plans li {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 2px 10px;
-		align-items: baseline;
-		padding: 5px 0;
-		font-size: 12.5px;
-	}
-	.plans li + li {
-		border-top: 1px dashed var(--border);
-	}
-	.pname {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: 2px 8px;
-		min-width: 0;
-	}
-	.pname strong {
-		font-weight: 600;
-	}
-	.pname a {
-		color: inherit;
-		text-decoration: none;
-	}
-	.pname a:hover {
-		text-decoration: underline;
-	}
-	.pmsg {
-		grid-column: 1 / -1;
-	}
-	.err,
-	.warnline,
-	.pauseline,
-	.runline {
-		font-size: 12px;
-	}
-	.err {
-		color: var(--danger);
-	}
-	.err.hold {
+	.cloud {
 		display: flex;
 		align-items: flex-start;
-		gap: 6px;
+		gap: 8px;
+		padding-top: var(--sp-4);
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		border-top: 1px solid var(--border);
 	}
-	.err.hold :global(svg) {
+	.cloud :global(svg) {
 		flex: none;
 		margin-top: 2px;
+		color: var(--text-3);
 	}
-	.warnline {
-		color: var(--lvl);
-		font-weight: 600;
+	.cloud .state {
+		font-weight: 500;
+		color: var(--tone);
 	}
-	.pauseline {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--text-2);
-	}
-	.runline {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--accent);
-		font-weight: 600;
-	}
-	.spin {
-		display: grid;
-		animation: spin 1s linear infinite;
-	}
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.spin {
-			animation: none;
-		}
+	.cloud.tone-neutral .state {
+		font-weight: 400;
+		color: var(--text-3);
 	}
 	.foot {
 		display: flex;
-		justify-content: flex-end;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-2) var(--sp-4);
 		margin-top: auto;
-		padding-top: 4px;
 	}
-	.more {
+	.prot {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
-		font-size: 12.5px;
-		font-weight: 600;
-		color: var(--accent);
-		text-decoration: none;
+		gap: 8px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		color: var(--text-2);
 	}
-	.more:hover {
-		text-decoration: underline;
+	.prot strong {
+		font-weight: 600;
+		color: var(--text-1);
 	}
 	@media (max-width: 520px) {
 		.facts {
@@ -556,12 +270,6 @@
 		}
 		.facts > div:last-child {
 			grid-column: 1 / -1;
-		}
-		.top {
-			flex-direction: column;
-		}
-		.plans li {
-			grid-template-columns: minmax(0, 1fr);
 		}
 	}
 </style>
