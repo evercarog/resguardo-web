@@ -44,7 +44,7 @@
 		</label>
 		{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 		{#if info}<div class="notice notice-success" role="status"><CircleCheck size={16} /><p>{info}</p></div>{/if}
-		<button class="btn btn-primary big" disabled={busy}>
+		<button class="btn btn-primary btn-lg" disabled={busy}>
 			{#if busy}<span class="spin" style="display:grid"><LoaderCircle size={16} /></span>{/if}
 			Entrar
 		</button>
@@ -58,21 +58,17 @@
 		flex-direction: column;
 		gap: 14px;
 	}
-	.big {
-		height: 42px;
-		margin-top: 4px;
-	}
 	.link {
 		align-self: center;
 		padding: 4px;
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 		background: none;
 		border: none;
 		cursor: pointer;
 	}
 	.link:hover {
-		color: var(--accent-soft-text);
+		color: var(--accent-text);
 	}
 </style>

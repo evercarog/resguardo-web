@@ -196,9 +196,11 @@
 <svelte:head><title>Seguridad de la cuenta · Resguardo</title></svelte:head>
 
 <div class="page">
-	<header>
-		<h1>Seguridad de la cuenta</h1>
-		<p class="faint">Autenticadores, contraseña y sesiones. Solo tú ves esta página.</p>
+	<header class="page-head">
+		<div>
+			<h1 class="page-title">Seguridad de la cuenta</h1>
+			<p class="page-sub">Autenticadores, contraseña y sesiones. Solo tú ves esta página.</p>
+		</div>
 	</header>
 
 	{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
@@ -422,31 +424,27 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
-		max-width: 640px;
-		margin: 0 auto;
+		gap: var(--sp-5);
+		max-width: 720px;
 	}
-	h1 {
-		font-size: 24px;
-		font-weight: 700;
-	}
-	header p {
-		margin: 4px 0 0;
-		font-size: 13.5px;
+	.page-head {
+		margin-bottom: 0;
 	}
 	.box {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		padding: 18px 20px;
-		animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+		gap: var(--sp-3);
+		padding: var(--sp-5);
+		animation: rise var(--dur-slow) var(--ease-out) both;
 	}
 	h2 {
 		display: flex;
 		align-items: center;
-		gap: 7px;
-		font-size: 16px;
-		font-weight: 650;
+		gap: var(--sp-2);
+		font-size: var(--fs-h2);
+		line-height: var(--lh-h2);
+		font-weight: 600;
+		letter-spacing: -0.01em;
 	}
 	.head {
 		display: flex;
@@ -456,11 +454,11 @@
 	}
 	.lead {
 		margin: 0;
-		font-size: 13px;
-		line-height: 1.5;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 	.small {
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
 	}
 	p.small {
 		margin: 0;
@@ -472,7 +470,7 @@
 		margin: 0;
 	}
 	.facts dt {
-		font-size: 12px;
+		font-size: var(--fs-xs);
 		color: var(--text-3);
 	}
 	.facts dd {
@@ -496,12 +494,11 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 10px;
-		padding: 9px 12px;
-		font-size: 13px;
-		line-height: 1.45;
+		padding: var(--sp-3);
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 		color: var(--warn);
 		background: var(--surface-2);
-		border: 1px solid var(--border);
 		border-radius: var(--radius);
 	}
 	.check li :global(svg) {
@@ -509,7 +506,7 @@
 		margin-top: 1px;
 	}
 	.check li.ok {
-		color: var(--success);
+		color: var(--ok);
 	}
 	.check li.note {
 		color: var(--text-3);
@@ -519,16 +516,15 @@
 		flex-direction: column;
 	}
 	.check strong {
-		color: var(--text);
-		font-weight: 600;
+		color: var(--text-1);
+		font-weight: 500;
 	}
 	.factors li {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 10px 12px;
+		padding: 10px var(--sp-3);
 		background: var(--surface-2);
-		border: 1px solid var(--border);
 		border-radius: var(--radius);
 	}
 	.ic {
@@ -538,7 +534,7 @@
 		height: 32px;
 		flex: none;
 		border-radius: 9px;
-		color: var(--accent-soft-text);
+		color: var(--accent-text);
 		background: var(--accent-soft);
 	}
 	.info {
@@ -548,10 +544,10 @@
 		min-width: 0;
 	}
 	.info .faint {
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
 	}
 	.del:hover:not(:disabled) {
-		color: var(--danger);
+		color: var(--bad);
 	}
 	.del:disabled {
 		opacity: 0.4;
@@ -571,7 +567,7 @@
 	}
 	.add p {
 		margin: 0;
-		font-size: 13px;
+		font-size: var(--fs-sm);
 	}
 	.row {
 		display: flex;
@@ -596,7 +592,7 @@
 		height: 180px;
 	}
 	.manual {
-		font-size: 13px;
+		font-size: var(--fs-sm);
 	}
 	.manual summary {
 		cursor: pointer;
@@ -613,7 +609,7 @@
 	.code {
 		height: 48px;
 		font-family: var(--mono);
-		font-size: 24px;
+		font-size: var(--fs-title);
 		letter-spacing: 0.35em;
 		text-align: center;
 	}
@@ -633,13 +629,13 @@
 		background: var(--surface-3);
 	}
 	.bar.on[data-l='1'] {
-		background: var(--danger);
+		background: var(--bad);
 	}
 	.bar.on[data-l='2'] {
 		background: var(--warn);
 	}
 	.bar.on[data-l='3'] {
-		background: var(--success);
+		background: var(--ok);
 	}
 	.sk {
 		height: 18px;

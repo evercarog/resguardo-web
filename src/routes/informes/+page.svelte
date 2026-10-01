@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { CircleAlert, CircleCheck, FileText, Printer, TriangleAlert, XCircle } from '@lucide/svelte';
+	import { CircleAlert, CircleCheck, FileText, Printer, TriangleAlert } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import Logo from '$lib/components/Logo.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
@@ -183,10 +183,10 @@
 <svelte:head><title>Informe {clientName} · {monthLabel} · Resguardo</title></svelte:head>
 
 <div class="page">
-	<div class="controls no-print">
+	<div class="controls page-head no-print">
 		<div>
-			<h1>Informes</h1>
-			<p class="faint">Resumen mensual de las copias de un cliente, listo para imprimir o guardar en PDF.</p>
+			<h1 class="page-title">Informes</h1>
+			<p class="page-sub">Resumen mensual de las copias de un cliente, listo para imprimir o guardar en PDF.</p>
 		</div>
 		<div class="pickers">
 			<label>
@@ -201,15 +201,17 @@
 				<span>Mes</span>
 				<input class="input" type="month" bind:value={month} onchange={load} max={`${today.year}-${pad(today.month + 1)}`} />
 			</label>
-			<button class="btn btn-primary" onclick={() => window.print()} disabled={loading}><Printer size={15} /> Imprimir o PDF</button>
+			<button class="btn btn-primary" onclick={() => window.print()} disabled={loading} title={loading ? 'Esperando a que se prepare el informe' : undefined}
+				><Printer size={16} /> Imprimir o PDF</button
+			>
 		</div>
 	</div>
 
-	{#if error}<div class="notice notice-danger no-print"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+	{#if error}<div class="notice notice-danger no-print" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 
 	<article class="report card" aria-busy={loading}>
 		<header class="rhead">
-			<div class="brand"><Logo size={30} /><strong>Resguardo</strong></div>
+			<div class="brand"><Logo size={28} /><strong>Resguardo</strong></div>
 			<div class="title">
 				<h2>Informe de copias de seguridad</h2>
 				<p>{clientName} · {monthLabel}</p>
@@ -218,13 +220,17 @@
 		</header>
 
 		{#if loading}
-			<p class="faint">Preparando el informe…</p>
+			<div class="sk-wrap" aria-hidden="true"><span class="skel sk-a"></span><span class="skel sk-b"></span><span class="skel sk-c"></span></div>
+			<span class="sr-only" role="status">Preparando el informe…</span>
 		{:else if !rows.length}
-			<p class="faint empty"><FileText size={16} /> No hay equipos para este cliente.</p>
+			<div class="empty-state">
+				<FileText size={32} strokeWidth={1.5} />
+				<p>Este cliente no tiene equipos vinculados.</p>
+			</div>
 		{:else}
-			<div class="verdict v-{verdict.kind}">
-				{#if verdict.kind === 'ok'}<CircleCheck size={18} />{:else if verdict.kind === 'warn'}<TriangleAlert size={18} />{:else}<XCircle size={18} />{/if}
-				<strong>{verdict.text}</strong>
+			<div class="notice tone-{verdict.kind}">
+				{#if verdict.kind === 'ok'}<CircleCheck size={16} />{:else if verdict.kind === 'warn'}<TriangleAlert size={16} />{:else}<CircleAlert size={16} />{/if}
+				<p><strong>{verdict.text}</strong></p>
 			</div>
 
 			<dl class="kpis">
@@ -306,146 +312,136 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		gap: 18px;
+		gap: var(--sp-5);
 	}
 	.controls {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-end;
-		gap: 16px;
 		flex-wrap: wrap;
-	}
-	h1 {
-		font-size: 24px;
-		font-weight: 700;
-	}
-	.controls p {
-		margin: 4px 0 0;
+		align-items: flex-end;
+		margin-bottom: 0;
 	}
 	.pickers {
 		display: flex;
-		align-items: flex-end;
-		gap: 10px;
 		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: var(--sp-3);
 	}
 	.pickers label {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
-		font-size: 12px;
-		font-weight: 600;
-		color: var(--text-2);
+		gap: 6px;
+		font-size: var(--fs-sm);
+		font-weight: 500;
+		color: var(--text-1);
 	}
 	.report {
 		display: flex;
 		flex-direction: column;
-		gap: 18px;
-		padding: 26px 28px;
+		gap: var(--sp-6);
+		padding: var(--sp-8);
 	}
 	.rhead {
 		display: grid;
 		grid-template-columns: auto 1fr auto;
 		align-items: center;
-		gap: 16px;
-		padding-bottom: 14px;
+		gap: var(--sp-4);
+		padding-bottom: var(--sp-5);
 		border-bottom: 1px solid var(--border);
 	}
 	.brand {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 15px;
+		font-size: var(--fs-h2);
+		font-weight: 600;
 	}
 	.title h2 {
-		font-size: 19px;
-		font-weight: 700;
+		font-size: var(--fs-title);
+		line-height: var(--lh-title);
+		font-weight: 650;
+		letter-spacing: -0.018em;
 	}
 	.title p {
-		margin: 2px 0 0;
-		font-size: 14px;
+		margin-top: 2px;
+		color: var(--text-2);
 	}
 	.gen {
-		font-size: 12px;
-		margin: 0;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 	}
-	.verdict {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 12px 14px;
-		border-radius: 10px;
-		font-size: 14px;
+	.notice strong {
+		font-weight: 600;
 	}
-	.v-ok {
-		color: var(--success);
-		background: color-mix(in srgb, var(--success) 10%, transparent);
-	}
-	.v-warn {
-		color: var(--warn);
-		background: color-mix(in srgb, var(--warn) 12%, transparent);
-	}
-	.v-bad {
-		color: var(--danger);
-		background: color-mix(in srgb, var(--danger) 10%, transparent);
-	}
+	/* Cifras del mes: un panel con separadores finos. */
 	.kpis {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 10px;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
 		margin: 0;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
 	}
 	.kpis div {
-		padding: 10px 12px;
-		border: 1px solid var(--border);
-		border-radius: 10px;
+		padding: var(--sp-4);
+	}
+	.kpis div + div {
+		border-left: 1px solid var(--border);
 	}
 	.kpis dt {
-		font-size: 11.5px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
+		font-weight: 500;
 		color: var(--text-3);
 	}
 	.kpis dd {
-		margin: 2px 0 0;
-		font-size: 19px;
-		font-weight: 700;
+		margin: 4px 0 0;
 		font-variant-numeric: tabular-nums;
+		font-size: var(--fs-stat);
+		line-height: var(--lh-stat);
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	.bad {
-		color: var(--danger);
+		color: var(--bad);
 	}
 	.dev h3 {
 		display: flex;
 		align-items: baseline;
 		gap: 8px;
-		font-size: 15px;
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-3);
+		font-size: var(--fs-h2);
+		line-height: var(--lh-h2);
+		font-weight: 600;
 	}
 	.dev h3 .faint {
-		font-size: 12px;
+		font-size: var(--fs-sm);
 		font-weight: 400;
 	}
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 13px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 	th {
+		height: 32px;
+		padding: 0 var(--sp-2);
+		font-size: var(--fs-xs);
+		font-weight: 500;
 		text-align: left;
-		font-size: 11.5px;
-		font-weight: 600;
 		color: var(--text-3);
-		padding: 6px 8px;
 		border-bottom: 1px solid var(--border);
 	}
 	td {
-		padding: 8px;
-		border-bottom: 1px solid var(--border);
+		padding: 10px var(--sp-2);
 		vertical-align: top;
+		border-bottom: 1px solid var(--border);
 	}
 	td strong {
 		display: block;
+		font-weight: 500;
 	}
 	.small {
-		font-size: 12px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 	}
 	.sub {
 		display: block;
@@ -457,32 +453,65 @@
 	}
 	.errrow td {
 		padding-top: 0;
-		color: var(--danger);
-		font-size: 12px;
+		font-size: var(--fs-xs);
+		color: var(--bad);
 	}
 	.noterow td {
 		padding-top: 0;
+		font-size: var(--fs-xs);
 		color: var(--text-2);
-		font-size: 12px;
 	}
 	.rfoot {
-		font-size: 11.5px;
-		line-height: 1.5;
-		padding-top: 10px;
+		padding-top: var(--sp-3);
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 		border-top: 1px solid var(--border);
 	}
-	.empty {
+	.sk-wrap {
 		display: flex;
-		align-items: center;
-		gap: 8px;
+		flex-direction: column;
+		gap: 12px;
+	}
+	.sk-a {
+		height: 44px;
+	}
+	.sk-b {
+		height: 72px;
+	}
+	.sk-c {
+		height: 180px;
+	}
+	@media (max-width: 960px) {
+		.kpis {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+		.kpis div:nth-child(4) {
+			border-left: none;
+		}
+		.kpis div:nth-child(n + 4) {
+			border-top: 1px solid var(--border);
+		}
 	}
 	@media (max-width: 720px) {
 		.report {
-			padding: 18px 14px;
+			padding: var(--sp-5) var(--sp-4);
 			overflow-x: auto;
 		}
 		.rhead {
 			grid-template-columns: 1fr;
+		}
+		.kpis {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.kpis div:nth-child(n) {
+			border-left: none;
+			border-top: none;
+		}
+		.kpis div:nth-child(even) {
+			border-left: 1px solid var(--border);
+		}
+		.kpis div:nth-child(n + 3) {
+			border-top: 1px solid var(--border);
 		}
 		table {
 			min-width: 640px;
@@ -493,15 +522,21 @@
 			display: none !important;
 		}
 		.report {
-			border: none;
-			box-shadow: none;
 			padding: 0;
+			border: none;
+		}
+		.kpis {
+			grid-template-columns: repeat(6, minmax(0, 1fr));
 		}
 		table {
 			min-width: 0;
 		}
 		tr {
 			break-inside: avoid;
+		}
+		.notice {
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
 		}
 	}
 </style>

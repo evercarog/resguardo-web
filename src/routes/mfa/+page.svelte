@@ -115,7 +115,7 @@
 				<span class="field-hint">Al menos 12 caracteres. Mejor una frase larga que no uses en otro sitio.</span>
 			</label>
 			{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
-			<button class="btn btn-primary big" disabled={busy}>Guardar contraseña</button>
+			<button class="btn btn-primary btn-lg" disabled={busy}>Guardar contraseña</button>
 		</form>
 	{:else}
 		{#if mode === 'enroll'}
@@ -149,7 +149,7 @@
 				required
 			/>
 			{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
-			<button class="btn btn-primary big" disabled={busy || code.replace(/\s/g, '').length < 6}>
+			<button class="btn btn-primary btn-lg" disabled={busy || code.replace(/\s/g, '').length < 6}>
 				{#if busy}<span class="spin" style="display:grid"><LoaderCircle size={16} /></span>{:else}<ShieldCheck size={16} />{/if}
 				{mode === 'enroll' ? 'Activar y entrar' : 'Verificar'}
 			</button>
@@ -185,7 +185,7 @@
 	}
 	.manual {
 		margin-bottom: 14px;
-		font-size: 13px;
+		font-size: var(--fs-sm);
 		text-align: center;
 	}
 	.manual summary {
@@ -210,8 +210,8 @@
 	}
 	.choose legend {
 		margin-bottom: 6px;
-		font-size: 13px;
-		font-weight: 600;
+		font-size: var(--fs-sm);
+		font-weight: 500;
 	}
 	.opt {
 		display: flex;
@@ -219,7 +219,7 @@
 		gap: 10px;
 		min-height: 40px;
 		padding: 8px 12px;
-		font-size: 14px;
+		font-size: var(--fs-body);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
@@ -239,9 +239,6 @@
 		letter-spacing: 0.35em;
 		text-align: center;
 	}
-	.big {
-		height: 42px;
-	}
 	.link {
 		display: flex;
 		align-items: center;
@@ -249,7 +246,7 @@
 		margin: 16px auto 0;
 		padding: 4px;
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--fs-sm);
 		color: var(--text-3);
 		background: none;
 		border: none;

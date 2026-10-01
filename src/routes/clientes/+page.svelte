@@ -53,46 +53,53 @@
 <svelte:head><title>Clientes · Resguardo</title></svelte:head>
 
 <div class="page">
-	<header>
-		<h1>Clientes</h1>
-		<p class="faint">Agrupa los equipos por cliente para verlos ordenados en el estado.</p>
+	<header class="page-head">
+		<div>
+			<h1 class="page-title">Clientes</h1>
+			<p class="page-sub">Agrupa los equipos por cliente para verlos ordenados en el estado y en los informes.</p>
+		</div>
 	</header>
 
-	<form class="card add" onsubmit={add}>
+	<form class="add" onsubmit={add}>
 		<input class="input" bind:value={name} placeholder="Nombre del nuevo cliente" aria-label="Nombre del nuevo cliente" maxlength="80" />
-		<button class="btn btn-primary" disabled={!name.trim()}><Plus size={16} /> Añadir</button>
+		<button class="btn btn-primary" disabled={!name.trim()} title={name.trim() ? undefined : 'Escribe el nombre del cliente'}><Plus size={16} /> Añadir</button>
 	</form>
-	{#if error || db.error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error || db.error}</p></div>{/if}
+	{#if error || db.error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error || db.error}</p></div>{/if}
 
-	<ul class="list">
-		{#each db.clients as c, i (c.id)}
-			<li class="card" style:--i={i}>
-				<span class="ic"><Building2 size={17} /></span>
-				<div class="info">
-					<strong>{c.name}</strong>
-					<span class="faint"
-						>{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'} · {reposOf(c)} {reposOf(c) === 1 ? 'destino' : 'destinos'}</span
-					>
-				</div>
-				<a class="icon-btn" href="/informes?cliente={encodeURIComponent(c.id)}" title="Informe mensual" aria-label="Informe mensual de {c.name}"
-					><FileText size={15} /></a
-				>
-				<button class="icon-btn" title="Cambiar nombre" aria-label="Cambiar nombre de {c.name}" onclick={() => (dialog = { kind: 'rename', client: c })}
-					><Pencil size={15} /></button
-				>
-				<button class="icon-btn del" title="Eliminar" aria-label="Eliminar {c.name}" onclick={() => (dialog = { kind: 'remove', client: c })}
-					><Trash2 size={15} /></button
-				>
-			</li>
-		{:else}
-			{#if db.loaded}
-				<li class="faint none">Aún no hay clientes. Crea uno arriba y asígnale equipos desde Estado, en el menú «⋯» de cada equipo.</li>
-			{:else if !db.error}
-				{#each { length: 2 } as _}<li class="card skel-row" aria-hidden="true"><span class="skel"></span></li>{/each}
-				<li class="sr-only" role="status">Cargando…</li>
-			{/if}
-		{/each}
-	</ul>
+	{#if db.clients.length}
+		<ul class="card list">
+			{#each db.clients as c (c.id)}
+				<li class="row">
+					<span class="ic" aria-hidden="true"><Building2 size={16} /></span>
+					<div class="info">
+						<strong>{c.name}</strong>
+						<span class="faint num">{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'} · {reposOf(c)} {reposOf(c) === 1 ? 'destino' : 'destinos'}</span>
+					</div>
+					<div class="acts">
+						<a class="icon-btn" href="/informes?cliente={encodeURIComponent(c.id)}" title="Informe mensual" aria-label="Informe mensual de {c.name}"
+							><FileText size={16} /></a
+						>
+						<button class="icon-btn" title="Cambiar nombre" aria-label="Cambiar nombre de {c.name}" onclick={() => (dialog = { kind: 'rename', client: c })}
+							><Pencil size={16} /></button
+						>
+						<button class="icon-btn del" title="Eliminar" aria-label="Eliminar {c.name}" onclick={() => (dialog = { kind: 'remove', client: c })}
+							><Trash2 size={16} /></button
+						>
+					</div>
+				</li>
+			{/each}
+		</ul>
+	{:else if db.loaded}
+		<div class="empty-state">
+			<Building2 size={32} strokeWidth={1.5} />
+			<p>Aún no hay clientes. Crea uno arriba y asígnale equipos desde Estado, en el menú «⋯» de cada equipo.</p>
+		</div>
+	{:else if !db.error}
+		<div class="card list" aria-hidden="true">
+			{#each { length: 3 } as _}<div class="row"><span class="skel sk-ic"></span><span class="skel sk-line"></span></div>{/each}
+		</div>
+		<span class="sr-only" role="status">Cargando…</span>
+	{/if}
 </div>
 
 {#if dialog?.kind === 'rename'}
@@ -121,74 +128,70 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
-		max-width: 640px;
-		margin: 0 auto;
+		gap: var(--sp-5);
+		max-width: 720px;
 	}
-	h1 {
-		font-size: 24px;
-		font-weight: 700;
-	}
-	header p {
-		margin: 4px 0 0;
-		font-size: 13.5px;
+	.page-head {
+		margin-bottom: 0;
 	}
 	.add {
 		display: flex;
-		gap: 8px;
-		padding: 10px;
-	}
-	.add .btn {
-		height: auto;
-		align-self: stretch;
+		gap: var(--sp-2);
 	}
 	.list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		list-style: none;
 	}
-	.list li.card {
+	.row {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 12px 14px;
-		animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-		animation-delay: calc(var(--i) * 30ms);
+		gap: var(--sp-3);
+		min-height: 52px;
+		padding: 10px var(--sp-4);
+		transition: background var(--dur-fast) var(--ease);
+	}
+	.row + .row {
+		border-top: 1px solid var(--border);
+	}
+	li.row:hover {
+		background: var(--surface-2);
 	}
 	.ic {
 		display: grid;
-		place-items: center;
-		width: 34px;
-		height: 34px;
-		border-radius: 9px;
-		color: var(--accent-soft-text);
-		background: var(--accent-soft);
+		color: var(--text-3);
 	}
 	.info {
 		display: flex;
-		flex-direction: column;
 		flex: 1;
+		flex-direction: column;
 		min-width: 0;
 	}
+	.info strong {
+		font-weight: 500;
+		overflow-wrap: anywhere;
+	}
 	.info .faint {
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+	}
+	.acts {
+		display: flex;
+		gap: 2px;
 	}
 	.del:hover {
-		color: var(--danger);
+		color: var(--bad);
 	}
-	.none {
-		padding: 20px;
-		line-height: 1.5;
-		text-align: center;
+	.sk-ic {
+		width: 16px;
+		height: 16px;
+		border-radius: 999px;
 	}
-	.skel-row {
-		padding: 14px;
-	}
-	.skel-row .skel {
-		width: 45%;
-		height: 30px;
+	.sk-line {
+		width: 40%;
+		height: 14px;
 	}
 </style>

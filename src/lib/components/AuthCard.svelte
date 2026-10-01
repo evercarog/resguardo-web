@@ -6,10 +6,9 @@
 </script>
 
 <div class="wrap">
-	<div class="glow" aria-hidden="true"></div>
 	<div class="card box">
 		<div class="head">
-			<Logo size={52} />
+			<Logo size={44} />
 			<h1>{title}</h1>
 			{#if subtitle}<p class="muted">{subtitle}</p>{/if}
 		</div>
@@ -20,52 +19,48 @@
 
 <style>
 	.wrap {
-		position: relative;
-		isolation: isolate;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 18px;
+		gap: var(--sp-5);
 		min-height: 100dvh;
-		padding: 24px 16px;
-	}
-	.glow {
-		position: absolute;
-		top: 12%;
-		left: 50%;
-		width: 460px;
-		height: 300px;
-		translate: -50% 0;
-		background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
-		filter: blur(10px);
-		z-index: -1;
+		padding: var(--sp-6) var(--sp-4);
+		background: var(--bg-subtle);
 	}
 	.box {
 		width: min(400px, 100%);
-		padding: 28px 26px 24px;
-		box-shadow: var(--shadow-md);
-		animation: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+		padding: var(--sp-8);
+		border-radius: var(--radius-xl);
+		box-shadow: var(--shadow-sm);
+		animation: rise var(--dur-slow) var(--ease-out) both;
 	}
 	.head {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		gap: var(--sp-2);
+		margin-bottom: var(--sp-6);
 		text-align: center;
-		gap: 8px;
-		margin-bottom: 22px;
 	}
 	h1 {
-		margin-top: 6px;
-		font-size: 22px;
-		font-weight: 700;
+		margin-top: var(--sp-2);
+		font-size: var(--fs-title);
+		line-height: var(--lh-title);
+		font-weight: 650;
+		letter-spacing: -0.018em;
 	}
 	.head p {
-		margin: 0;
-		font-size: 14px;
-		line-height: 1.5;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 	}
 	.foot {
-		font-size: 12px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
+	}
+	@media (max-width: 480px) {
+		.box {
+			padding: var(--sp-6) var(--sp-5);
+		}
 	}
 </style>

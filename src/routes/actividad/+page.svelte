@@ -11,8 +11,7 @@
 		RefreshCw,
 		Save,
 		ShieldCheck,
-		TriangleAlert,
-		XCircle
+		TriangleAlert
 	} from '@lucide/svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { formatBytes, formatDate, formatDay, formatDuration, formatTime, startOfDay } from '$lib/format';
@@ -286,8 +285,9 @@
 	};
 	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload, verify_offsite: CloudCheck, restore_test: ArchiveRestore };
 	const RESULT_LABEL: Record<Result, string> = { ok: 'Correcta', warning: 'Con avisos', error: 'Falló' };
-	const RESULT_ICON = { ok: CircleCheck, warning: TriangleAlert, error: XCircle };
-	const LVL: Record<Result, string> = { ok: 'ok', warning: 'late', error: 'failed' };
+	const RESULT_ICON = { ok: CircleCheck, warning: TriangleAlert, error: CircleAlert };
+	/** Tono del sistema de diseño de cada resultado. */
+	const TONE: Record<Result, string> = { ok: 'ok', warning: 'warn', error: 'bad' };
 
 	const periodLabel = $derived(period === 'today' ? 'hoy' : period === '7d' ? 'en los últimos 7 días' : 'en los últimos 30 días');
 </script>
@@ -295,17 +295,19 @@
 <svelte:head><title>Actividad · Resguardo</title></svelte:head>
 
 <div class="page">
-	<header class="head">
+	<header class="page-head">
 		<div>
-			<h1>Actividad</h1>
-			<p class="faint">Copias, verificaciones y subidas de tus equipos, día a día.</p>
+			<h1 class="page-title">Actividad</h1>
+			<p class="page-sub">Copias, verificaciones y subidas de tus equipos, día a día.</p>
 		</div>
-		<button class="btn btn-sm" onclick={refresh} disabled={loading || !db.loaded}>
-			<span class:spin={loading && db.loaded} style="display:grid"><RefreshCw size={14} /></span> Actualizar
-		</button>
+		<div class="page-actions">
+			<button class="btn" onclick={refresh} disabled={loading || !db.loaded}>
+				<span class:spin={loading && db.loaded} style="display:grid"><RefreshCw size={16} /></span> Actualizar
+			</button>
+		</div>
 	</header>
 
-	<section class="filters card" aria-label="Filtros">
+	<section class="filters" aria-label="Filtros">
 		<div class="seg" role="group" aria-label="Periodo">
 			{#each PERIODS as p (p.id)}
 				<button class:on={period === p.id} aria-pressed={period === p.id} onclick={() => (period = p.id)}>{p.label}</button>
@@ -338,7 +340,7 @@
 	</section>
 
 	{#if error || (db.error && !db.loaded)}
-		<div class="notice notice-danger">
+		<div class="notice notice-danger" role="alert">
 			<CircleAlert size={16} />
 			<p>{error || db.error}</p>
 		</div>
@@ -346,7 +348,7 @@
 
 	{#if loading && !error && !(db.error && !db.loaded)}
 		<!-- Esqueleto mientras llegan los datos -->
-		<div class="counts" aria-hidden="true">
+		<div class="card counts" aria-hidden="true">
 			{#each { length: 4 } as _}
 				<div class="count"><span class="skel sk-num"></span><span class="skel sk-txt"></span></div>
 			{/each}
@@ -361,48 +363,46 @@
 		</div>
 		<span class="sr-only" role="status">Cargando…</span>
 	{:else if !error && db.loaded}
-		<div class="counts">
+		<div class="card counts">
 			<button class="count" class:on={!onlyProblems} onclick={() => (onlyProblems = false)} aria-pressed={!onlyProblems}>
-				<strong>{totals.all.toLocaleString('es')}</strong><span>En total</span>
+				<span class="lbl">En total</span><strong class="num">{totals.all.toLocaleString('es')}</strong>
 			</button>
-			<div class="count ok"><strong>{totals.ok.toLocaleString('es')}</strong><span>Correctas</span></div>
-			<button class="count warn" class:on={onlyProblems} onclick={() => (onlyProblems = true)} aria-pressed={onlyProblems}>
-				<strong>{totals.warning.toLocaleString('es')}</strong><span>Con avisos</span>
+			<div class="count tone-ok"><span class="lbl"><CircleCheck size={12} aria-hidden="true" /> Correctas</span><strong class="num">{totals.ok.toLocaleString('es')}</strong></div>
+			<button class="count tone-warn" class:on={onlyProblems} onclick={() => (onlyProblems = true)} aria-pressed={onlyProblems}>
+				<span class="lbl"><TriangleAlert size={12} aria-hidden="true" /> Con avisos</span><strong class="num">{totals.warning.toLocaleString('es')}</strong>
 			</button>
-			<button class="count bad" class:on={onlyProblems} onclick={() => (onlyProblems = true)} aria-pressed={onlyProblems}>
-				<strong>{totals.error.toLocaleString('es')}</strong><span>Fallos</span>
+			<button class="count tone-bad" class:on={onlyProblems} onclick={() => (onlyProblems = true)} aria-pressed={onlyProblems}>
+				<span class="lbl"><CircleAlert size={12} aria-hidden="true" /> Fallos</span><strong class="num">{totals.error.toLocaleString('es')}</strong>
 			</button>
 		</div>
 
 		{#if !devices.length}
-			<div class="empty-state card">
-				<Inbox size={28} />
-				<h2>No hay equipos</h2>
-				<p class="muted">Este cliente aún no tiene equipos vinculados.</p>
+			<div class="empty-state">
+				<Inbox size={32} strokeWidth={1.5} />
+				<p>Este cliente aún no tiene equipos vinculados.</p>
+				<a class="btn btn-primary" href="/vincular">Vincular un equipo</a>
 			</div>
 		{:else if !shown.length}
-			<div class="empty-state card">
+			<div class="empty-state">
 				{#if onlyProblems && entries.length}
-					<CircleCheck size={28} />
-					<h2>Sin fallos ni avisos</h2>
-					<p class="muted">Todo lo que pasó {periodLabel} salió bien.</p>
+					<CircleCheck size={32} strokeWidth={1.5} />
+					<p>Sin fallos ni avisos: todo lo que pasó {periodLabel} salió bien.</p>
 				{:else}
-					<History size={28} />
-					<h2>Sin actividad</h2>
-					<p class="muted">No hay copias ni verificaciones {periodLabel} en estos equipos.</p>
+					<History size={32} strokeWidth={1.5} />
+					<p>No hay copias ni verificaciones {periodLabel} en estos equipos.</p>
 				{/if}
 			</div>
 		{:else}
 			{#each groups as g (g.day)}
 				<section class="day">
-					<h2>{g.day}</h2>
+					<h2 class="overline">{g.day}</h2>
 					<ul class="card list">
 						{#each g.items as e (e.key)}
 							{@const repo = repoOf(e)}
 							{@const KindIcon = KIND_ICON[e.kind]}
 							{@const ResultIcon = RESULT_ICON[e.result]}
 							<li>
-								<a class="item lvl-{LVL[e.result]}" href="/repo/{e.device_id}/{encodeURIComponent(e.repo_id)}">
+								<a class="item tone-{TONE[e.result]}" href="/repo/{e.device_id}/{encodeURIComponent(e.repo_id)}">
 									<span class="kind"><KindIcon size={16} /></span>
 									<div class="main">
 										<div class="line">
@@ -410,7 +410,7 @@
 											{#if e.kind === 'snapshot'}
 												<span class="faint small">a mano u otra herramienta</span>
 											{:else}
-												<span class="chip lvl-{LVL[e.result]}"><ResultIcon size={12} aria-hidden="true" />{e.unchanged ? 'Sin cambios' : RESULT_LABEL[e.result]}</span>
+												<span class="badge badge-sm tone-{TONE[e.result]}"><ResultIcon size={12} aria-hidden="true" />{e.unchanged ? 'Sin cambios' : RESULT_LABEL[e.result]}</span>
 											{/if}
 										</div>
 										<span class="faint where">{repo?.name ?? e.repo_id} · {deviceName(e.device_id)}</span>
@@ -419,8 +419,8 @@
 										{/if}
 									</div>
 									<div class="facts">
-										<span title={formatDate(e.time)}>{formatTime(e.time)}</span>
-										<span class="faint">
+										<span class="num" title={formatDate(e.time)}>{formatTime(e.time)}</span>
+										<span class="faint num">
 											{#if e.duration != null}{formatDuration(e.duration)}{/if}
 											{#if e.added != null}{e.duration != null ? ' · ' : ''}+{formatBytes(e.added)}{/if}
 										</span>
@@ -432,7 +432,7 @@
 				</section>
 			{/each}
 			{#if shown.length > limit}
-				<button class="btn more" onclick={() => (limit += 150)}>
+				<button class="btn btn-ghost more" onclick={() => (limit += 150)}>
 					Mostrar más ({(shown.length - limit).toLocaleString('es')} restantes)
 				</button>
 			{/if}
@@ -449,45 +449,34 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: var(--sp-5);
 	}
-	.head {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 12px;
-	}
-	h1 {
-		font-size: 24px;
-		font-weight: 700;
-	}
-	.head p {
-		margin: 2px 0 0;
-		font-size: 13.5px;
+	.page-head {
+		margin-bottom: 0;
 	}
 
 	/* ---------- Filtros ---------- */
 	.filters {
 		display: flex;
-		align-items: flex-end;
-		gap: 12px;
 		flex-wrap: wrap;
-		padding: 12px 14px;
+		align-items: flex-end;
+		gap: var(--sp-3);
 	}
+	/* Pestañas segmentadas del periodo. */
 	.seg {
 		display: inline-flex;
-		padding: 3px;
 		gap: 2px;
-		background: var(--surface-3);
+		padding: 3px;
+		background: var(--surface-2);
 		border-radius: var(--radius);
 	}
 	.seg button {
 		flex: 1;
-		height: 30px;
-		padding: 0 14px;
+		height: 28px;
+		padding: 0 12px;
 		font: inherit;
-		font-size: 13px;
-		font-weight: 600;
+		font-size: var(--fs-sm);
+		font-weight: 500;
 		white-space: nowrap;
 		color: var(--text-2);
 		background: transparent;
@@ -496,193 +485,167 @@
 		cursor: pointer;
 		-webkit-tap-highlight-color: transparent;
 		transition:
-			background 0.15s,
-			color 0.15s;
+			background var(--dur-fast) var(--ease),
+			color var(--dur-fast) var(--ease);
+	}
+	.seg button:hover {
+		color: var(--text-1);
 	}
 	.seg button.on {
-		color: var(--text);
+		color: var(--text-1);
 		background: var(--surface);
-		box-shadow: var(--shadow-sm);
+		box-shadow: 0 0 0 1px var(--border);
 	}
 	.pickers {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(150px, 1fr));
-		gap: 10px;
 		flex: 1;
+		grid-template-columns: repeat(3, minmax(150px, 1fr));
+		gap: var(--sp-3);
 	}
 	.pickers label {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 6px;
 		min-width: 0;
-		font-size: 12px;
-		font-weight: 600;
-		color: var(--text-2);
+		font-size: var(--fs-sm);
+		font-weight: 500;
+		color: var(--text-1);
 	}
 
-	/* ---------- Contadores ---------- */
+	/* ---------- Contadores: un panel con separadores ---------- */
 	.counts {
 		display: grid;
 		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 10px;
+		overflow: hidden;
 	}
 	.count {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 2px;
-		padding: 11px 14px;
+		padding: var(--sp-4) var(--sp-5);
 		font: inherit;
 		text-align: left;
-		color: var(--text-3);
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-sm);
-		animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+		color: var(--text-1);
+		background: transparent;
+		border: none;
+	}
+	.count + .count {
+		border-left: 1px solid var(--border);
 	}
 	button.count {
 		cursor: pointer;
 		-webkit-tap-highlight-color: transparent;
-		transition: border-color 0.15s;
+		transition: background var(--dur-fast) var(--ease);
 	}
 	button.count:hover {
-		border-color: var(--border-strong);
+		background: var(--surface-2);
 	}
-	/* Contador que corresponde al filtro de resultado activo. */
+	/* Contador que corresponde al filtro activo: subrayado de acento. */
 	button.count.on {
-		border-color: var(--accent);
+		box-shadow: inset 0 -2px 0 var(--accent);
+	}
+	.lbl {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
+		font-weight: 500;
+		color: var(--tone, var(--text-3));
 	}
 	.count strong {
-		font-family: var(--font-display);
-		font-size: 22px;
-		line-height: 1.1;
-		font-variant-numeric: tabular-nums;
-		color: var(--text);
-	}
-	.count span {
-		font-size: 12px;
-	}
-	.count.ok strong {
-		color: var(--success);
-	}
-	.count.warn strong {
-		color: var(--warn);
-	}
-	.count.bad strong {
-		color: var(--danger);
+		font-size: var(--fs-stat);
+		line-height: var(--lh-stat);
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 
 	/* ---------- Línea de tiempo ---------- */
 	.day h2 {
-		margin-bottom: 8px;
-		font-size: 13px;
-		font-weight: 650;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: var(--text-3);
+		margin-bottom: var(--sp-2);
 	}
 	.list {
-		list-style: none;
-		margin: 0;
-		padding: 4px;
 		display: flex;
 		flex-direction: column;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		list-style: none;
 	}
 	.list li + li {
 		border-top: 1px solid var(--border);
 	}
 	.item {
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 12px;
-		min-height: 52px;
-		padding: 9px 10px;
-		color: var(--text);
+		grid-template-columns: 16px minmax(0, 1fr) auto;
+		align-items: start;
+		gap: var(--sp-3);
+		min-height: 44px;
+		padding: 10px var(--sp-4);
+		color: var(--text-1);
 		text-decoration: none;
-		border-radius: var(--radius);
 		-webkit-tap-highlight-color: transparent;
-		transition: background 0.15s;
+		transition: background var(--dur-fast) var(--ease);
 	}
 	a.item:hover {
-		background: var(--surface-3);
+		background: var(--surface-2);
+		text-decoration: none;
 	}
 	.kind {
 		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		border-radius: 9px;
-		color: var(--lvl, var(--text-2));
-		background: color-mix(in srgb, var(--lvl, var(--text-3)) 12%, transparent);
+		padding-top: 2px;
+		color: var(--text-3);
 	}
 	.main {
 		display: flex;
 		flex-direction: column;
+		gap: 2px;
 		min-width: 0;
 	}
 	.line {
 		display: flex;
-		align-items: center;
-		gap: 8px;
 		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-2);
 	}
 	.line strong {
-		font-size: 13.5px;
+		font-weight: 500;
 	}
 	.small {
-		font-size: 12px;
+		font-size: var(--fs-xs);
 	}
 	.where {
-		font-size: 12.5px;
 		overflow: hidden;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.msg {
-		margin-top: 2px;
-		font-size: 12px;
-		color: var(--lvl);
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		color: var(--tone);
 		overflow-wrap: anywhere;
 	}
 	.facts {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		font-size: 13px;
-		font-variant-numeric: tabular-nums;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
 		white-space: nowrap;
 	}
 	.facts .faint {
-		font-size: 11.5px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 	}
 	.more {
 		align-self: center;
 	}
 	.note {
-		margin: 0;
-		font-size: 12px;
-		line-height: 1.5;
-	}
-
-	/* ---------- Vacío ---------- */
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
-		padding: 36px 24px;
-		text-align: center;
-		color: var(--text-3);
-	}
-	.empty-state h2 {
-		font-size: 17px;
-		color: var(--text);
-	}
-	.empty-state p {
-		margin: 0;
-		max-width: 420px;
+		font-size: var(--fs-xs);
+		line-height: var(--lh-xs);
 	}
 
 	/* ---------- Esqueletos ---------- */
@@ -701,31 +664,27 @@
 		margin-bottom: 10px;
 	}
 	.sk-item {
-		grid-template-columns: auto 1fr;
+		grid-template-columns: 16px 1fr;
+		align-items: center;
 	}
 	.sk-ic {
-		width: 32px;
-		height: 32px;
-		border-radius: 9px;
+		width: 16px;
+		height: 16px;
+		border-radius: 999px;
 	}
 	.sk-line {
-		height: 14px;
 		width: 70%;
+		height: 14px;
 	}
-
 	@media (pointer: coarse) {
 		.seg button {
 			height: 38px;
-		}
-		.item {
-			min-height: 60px;
 		}
 	}
 	@media (max-width: 720px) {
 		.filters {
 			flex-direction: column;
 			align-items: stretch;
-			padding: 12px;
 		}
 		.seg {
 			display: flex;
@@ -739,11 +698,15 @@
 		}
 		.counts {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: 8px;
+		}
+		.count:nth-child(3) {
+			border-left: none;
+		}
+		.count:nth-child(n + 3) {
+			border-top: 1px solid var(--border);
 		}
 		.item {
-			gap: 10px;
-			padding: 9px 8px;
+			padding: 10px var(--sp-3);
 		}
 	}
 </style>

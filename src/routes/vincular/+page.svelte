@@ -84,16 +84,18 @@
 <svelte:head><title>Vincular equipo · Resguardo</title></svelte:head>
 
 <div class="page">
-	<header>
-		<h1>Vincular un equipo</h1>
-		<p class="faint">El equipo enviará aquí el estado de sus copias automáticas. Nunca envía contraseñas ni nombres de archivos.</p>
+	<header class="page-head">
+		<div>
+			<h1 class="page-title">Vincular un equipo</h1>
+			<p class="page-sub">El equipo enviará aquí el estado de sus copias automáticas. Nunca envía contraseñas ni nombres de archivos.</p>
+		</div>
 	</header>
 
 	<section class="card box">
 		{#if paired}
 			<div class="done">
-				<span class="done-icon"><CircleCheck size={30} /></span>
-				<h2>¡{paired.name} está vinculado!</h2>
+				<span class="done-icon"><CircleCheck size={28} /></span>
+				<h2>{paired.name} está vinculado</h2>
 				<p class="muted">Su estado aparecerá en la página principal en cuanto haga su próximo informe (unos minutos).</p>
 				<div class="row">
 					<a class="btn btn-primary" href="/">Ver estado</a>
@@ -135,7 +137,7 @@
 				{/if}
 				{#if code && remaining <= 0}<p class="faint">El código anterior caducó.</p>{/if}
 				{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
-				<button class="btn btn-primary big" onclick={generate} disabled={busy}>
+				<button class="btn btn-primary btn-lg" onclick={generate} disabled={busy}>
 					{#if busy}<span class="spin" style="display:grid"><LoaderCircle size={16} /></span>{:else}<KeyRound size={16} />{/if}
 					Generar código
 				</button>
@@ -153,30 +155,20 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		gap: 18px;
-		max-width: 560px;
-		margin: 0 auto;
+		gap: var(--sp-5);
+		max-width: 600px;
 	}
-	h1 {
-		font-size: 24px;
-		font-weight: 700;
-	}
-	header p {
-		margin: 4px 0 0;
-		font-size: 13.5px;
-		line-height: 1.5;
+	.page-head {
+		margin-bottom: 0;
 	}
 	.box {
-		padding: 24px;
-		animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+		padding: var(--sp-6);
+		animation: rise var(--dur-slow) var(--ease-out) both;
 	}
 	.form {
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
-	}
-	.big {
-		height: 42px;
 	}
 	.code-view {
 		display: flex;
@@ -191,12 +183,12 @@
 	.code {
 		margin: 4px 0;
 		padding: 10px 18px;
-		font-size: clamp(32px, 9vw, 46px);
-		font-weight: 700;
+		font-size: clamp(30px, 9vw, 42px);
+		font-weight: 600;
 		letter-spacing: 0.08em;
-		color: var(--accent-soft-text);
-		background: var(--accent-soft);
-		border: none;
+		color: var(--text-1);
+		background: var(--surface-2);
+		border: 1px solid var(--border);
 		border-radius: var(--radius-lg);
 		cursor: pointer;
 		animation: pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -208,21 +200,21 @@
 		}
 	}
 	.small {
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
 	}
 	.waiting {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin: 14px 0 4px;
-		font-size: 13.5px;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 	}
 	.steps {
 		text-align: left;
 		margin: 8px 0 12px;
 		padding-left: 20px;
-		font-size: 13.5px;
+		font-size: var(--fs-sm);
 		line-height: 1.8;
 		color: var(--text-2);
 	}
@@ -239,12 +231,12 @@
 		width: 60px;
 		height: 60px;
 		border-radius: 50%;
-		color: var(--success);
-		background: var(--success-soft);
+		color: var(--ok);
+		background: var(--ok-soft);
 		animation: pop 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 	}
 	.done h2 {
-		font-size: 18px;
+		font-size: var(--fs-h2);
 	}
 	.done p {
 		margin: 0 0 8px;
@@ -258,7 +250,7 @@
 		gap: 8px;
 		align-items: flex-start;
 		margin: 0;
-		font-size: 12.5px;
+		font-size: var(--fs-sm);
 		line-height: 1.5;
 	}
 	.note :global(svg) {
