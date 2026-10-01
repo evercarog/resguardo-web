@@ -120,11 +120,13 @@
 		refreshing = false;
 	}
 
+	/** Orden de gravedad: una subida frenada por un cambio inusual va antes que todo. */
+	const rank = (r: { repo: { offsite_hold?: unknown }; status: { level: Level } }) => (r.repo.offsite_hold ? -1 : LEVEL_ORDER[r.status.level]);
 	const repoRows = $derived(
 		db.repos
 			.map((r) => ({ repo: r, status: repoStatus(r, now) }))
 			// Dentro de cada equipo, lo más grave primero.
-			.sort((a, b) => LEVEL_ORDER[a.status.level] - LEVEL_ORDER[b.status.level] || a.repo.name.localeCompare(b.repo.name))
+			.sort((a, b) => rank(a) - rank(b) || a.repo.name.localeCompare(b.repo.name))
 	);
 	const count = (levels: Level[]) => repoRows.filter((r) => levels.includes(r.status.level)).length;
 	const offline = $derived(db.devices.filter((d) => !d.revoked_at && !deviceOnline(d, now)).length);
@@ -144,7 +146,7 @@
 		const byClient = new Map<string | null, Device[]>();
 		for (const d of db.devices) byClient.set(d.client_id, [...(byClient.get(d.client_id) ?? []), d]);
 		const worst = (d: Device) =>
-			Math.min(6, ...repoRows.filter((r) => r.repo.device_id === d.id).map((r) => LEVEL_ORDER[r.status.level])) -
+			Math.min(6, ...repoRows.filter((r) => r.repo.device_id === d.id).map(rank)) -
 			(deviceOnline(d, now) ? 0 : 10);
 		const out = [...byClient.entries()].map(([clientId, devices]) => {
 			const sorted = devices.sort((a, b) => worst(a) - worst(b) || a.name.localeCompare(b.name));
@@ -380,7 +382,7 @@
 	{@const d = dialog.device}
 	<ConfirmDialog
 		title="¿Desvincular «{d.name}»?"
-		message="Dejará de enviar su estado. Sus copias no se tocan."
+		message="Dejará de enviar su estado. Sus versiones guardadas no se tocan."
 		confirmLabel="Desvincular"
 		danger
 		onconfirm={() => removeDevice(d)}
@@ -414,14 +416,6 @@
 	.calm {
 		color: var(--success);
 		font-weight: 600;
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 	/* Esqueletos de carga */
 	.skel-count,
@@ -670,6 +664,9 @@
 		line-height: 1.55;
 	}
 	@media (max-width: 720px) {
+		.device {
+			padding: 12px 10px;
+		}
 		h1 {
 			font-size: 22px;
 		}
@@ -693,6 +690,7 @@
 	}
 	.old-version {
 		display: inline-block;
+		align-self: flex-start;
 		margin-top: 2px;
 		padding: 0 7px;
 		font-size: 11px;

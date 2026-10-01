@@ -38,7 +38,7 @@
 			<span>{title}</span>
 			<span class="faint">máx. {format(max)}</span>
 		</figcaption>
-		<div class="plot" role="img" aria-label="{title}, últimas {points.length} copias" onmouseleave={() => (hover = null)}>
+		<div class="plot" role="img" aria-label="{title}, últimas {points.length} versiones" onmouseleave={() => (hover = null)}>
 			{#each points as p, i}
 				<button
 					class="col"

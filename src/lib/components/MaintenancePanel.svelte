@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { CircleAlert, CircleCheck, CloudUpload, LoaderCircle, ShieldCheck, TriangleAlert } from '@lucide/svelte';
-	import { formatDate, formatRelative } from '$lib/format';
+	import { CloudUpload, LoaderCircle, ShieldCheck } from '@lucide/svelte';
+	import RunResult from '$lib/components/RunResult.svelte';
 	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, offsiteVerifySummary, scheduleLabel, taskProgress, verifyModeLabel } from '$lib/status';
 	import type { Repo, TaskRun } from '$lib/types';
 
@@ -16,10 +16,7 @@
 
 {#snippet result(run: TaskRun | null)}
 	{#if run}
-		<span class="res res-{run.result}" title={run.finished ? formatDate(run.finished) : ''}>
-			{#if run.result === 'ok'}<CircleCheck size={13} />{:else if run.result === 'warning'}<TriangleAlert size={13} />{:else}<CircleAlert size={13} />{/if}
-			{run.finished ? formatRelative(run.finished, now) : '—'}
-		</span>
+		<RunResult {run} {now} />
 		{#if run.message}<span class="msg">{run.message}</span>{/if}
 	{:else}
 		<span class="faint">todavía ninguna</span>
@@ -63,7 +60,7 @@
 								? ' · con retención'
 								: ''}
 						{:else}
-							No configurada: todas las copias están en un solo lugar
+							No configurada: todas las versiones están en un solo lugar
 						{/if}
 					</span>
 					{#if cloudVerify}
@@ -149,21 +146,6 @@
 		min-width: 0;
 		font-size: 12.5px;
 		text-align: right;
-	}
-	.res {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		font-weight: 600;
-	}
-	.res-ok {
-		color: var(--success);
-	}
-	.res-warning {
-		color: var(--warn);
-	}
-	.res-error {
-		color: var(--danger);
 	}
 	.msg {
 		font-size: 11.5px;

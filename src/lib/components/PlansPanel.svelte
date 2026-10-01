@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { CalendarClock, CircleAlert, CircleCheck, Hand, TriangleAlert } from '@lucide/svelte';
-	import { formatDate, formatRelative } from '$lib/format';
+	import { CalendarClock, Hand } from '@lucide/svelte';
+	import RunResult from '$lib/components/RunResult.svelte';
 	import { planScheduleLabel } from '$lib/status';
 	import type { PlanInfo } from '$lib/types';
 
@@ -13,7 +13,7 @@
 		<h2>Copias que se guardan aquí</h2>
 		<div class="rows">
 			{#each plans as p (p.id)}
-				<div class="row" class:off={!p.schedule}>
+				<div class="row" class:off={!p.schedule} id="copia-{p.id}">
 					<span class="ic">
 						{#if p.schedule}<CalendarClock size={16} />{:else}<Hand size={16} />{/if}
 					</span>
@@ -27,18 +27,8 @@
 						>
 					</div>
 					<div class="state">
-						{#if p.last_run}
-							{@const run = p.last_run}
-							<span class="res res-{run.result}" title={run.finished ? formatDate(run.finished) : ''}>
-								{#if run.result === 'ok'}<CircleCheck size={13} />{:else if run.result === 'warning'}<TriangleAlert
-										size={13}
-									/>{:else}<CircleAlert size={13} />{/if}
-								{formatRelative(run.finished ?? run.started, now)}{#if run.result !== 'error' && run.unchanged} · sin cambios{/if}
-							</span>
-							{#if run.result !== 'ok' && run.message}<span class="msg">{run.message}</span>{/if}
-						{:else}
-							<span class="faint">todavía ninguna</span>
-						{/if}
+						<RunResult run={p.last_run} {now} />
+						{#if p.last_run && p.last_run.result !== 'ok' && p.last_run.message}<span class="msg">{p.last_run.message}</span>{/if}
 					</div>
 				</div>
 			{/each}
@@ -68,6 +58,14 @@
 		gap: 12px;
 		padding: 10px 0;
 		border-top: 1px solid var(--border);
+	}
+	/* Al llegar desde «Copias» en Estado (#copia-…), se resalta. */
+	.row:target {
+		margin: 0 -10px;
+		padding-inline: 10px;
+		border-radius: var(--radius);
+		background: var(--accent-soft);
+		scroll-margin-top: calc(var(--header-h, 60px) + 16px);
 	}
 	.row:first-child {
 		border-top: none;
@@ -126,21 +124,6 @@
 		min-width: 0;
 		font-size: 12.5px;
 		text-align: right;
-	}
-	.res {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		font-weight: 600;
-	}
-	.res-ok {
-		color: var(--success);
-	}
-	.res-warning {
-		color: var(--warn);
-	}
-	.res-error {
-		color: var(--danger);
 	}
 	.msg {
 		font-size: 11.5px;

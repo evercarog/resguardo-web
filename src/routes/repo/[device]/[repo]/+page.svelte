@@ -5,10 +5,12 @@
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
+	import RelTime from '$lib/components/RelTime.svelte';
+	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
-	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
-	import { HOLD_ADVICE, holdSummary, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince, taskRunning } from '$lib/status';
+	import { formatBytes, formatDate, formatDay, formatDuration, formatNumber, formatTime } from '$lib/format';
+	import { HOLD_ADVICE, chipLevel, holdSummary, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus, runningSince, taskRunning } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { SnapshotRow } from '$lib/types';
 
@@ -118,7 +120,7 @@
 		<div class="card block" aria-hidden="true"><span class="skel sk-block"></span></div>
 		<span class="sr-only" role="status">Cargando…</span>
 	{:else if !repo}
-		<div class="notice notice-danger"><CircleAlert size={16} /><p>Esta copia ya no existe o el equipo aún no la ha informado.</p></div>
+		<div class="notice notice-danger"><CircleAlert size={16} /><p>Este destino ya no existe o el equipo aún no lo ha informado. <a href="/">Volver al estado</a>.</p></div>
 	{:else}
 		<header class="head">
 			<div>
@@ -128,7 +130,7 @@
 					{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
 				</p>
 			</div>
-			{#if status}<span class="badge lvl-{status.level}">{status.label}</span>{/if}
+			{#if status}<StatusChip level={chipLevel(repo, status.level)} size="md" />{/if}
 		</header>
 
 		{#if repo.offsite_hold}
@@ -171,27 +173,27 @@
 
 		<div class="stats">
 			<div class="stat">
-				<span class="label">Última copia</span>
-				<strong>{status?.last ? formatRelative(status.last) : '—'}</strong>
+				<span class="label">Última versión</span>
+				<strong>{#if status?.last}<RelTime iso={status.last} {now} capitalize />{:else}—{/if}</strong>
 				{#if status?.last}<span class="sub">{formatDate(status.last)}</span>{/if}
 				{#if status?.unchangedAt}
-					<span class="sub" title={formatDate(status.unchangedAt)}>Última revisión {formatRelative(status.unchangedAt)} · sin cambios</span>
+					<span class="sub">Última revisión <RelTime iso={status.unchangedAt} {now} /> · sin cambios</span>
 				{/if}
 			</div>
 			<div class="stat">
-				<span class="label">Copias</span>
+				<span class="label">Versiones</span>
 				<strong>{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</strong>
-				<span class="sub">en este destino</span>
+				<span class="sub">guardadas en este destino</span>
 			</div>
 			<div class="stat">
 				<span class="label">Tamaño protegido</span>
 				<strong>{formatBytes(repo.last_total_bytes)}</strong>
-				<span class="sub">en la última copia</span>
+				<span class="sub">en la última versión</span>
 			</div>
 			<div class="stat">
 				<span class="label">Duración media</span>
 				<strong>{avgDuration != null ? formatDuration(avgDuration) : '—'}</strong>
-				<span class="sub">{avgAdded != null ? `+${formatBytes(avgAdded)} por copia` : ''}</span>
+				<span class="sub">{avgAdded != null ? `+${formatBytes(avgAdded)} por versión` : ''}</span>
 			</div>
 		</div>
 
@@ -205,7 +207,7 @@
 			<div class="card block" aria-hidden="true"><span class="skel sk-block"></span></div>
 		{:else if snapshots.length === 0 && !error}
 			<div class="card empty">
-				<p class="muted">La lista de copias llegará con el próximo informe del equipo (como mucho en una hora).</p>
+				<p class="muted">La lista de versiones llegará con el próximo informe del equipo (como mucho en una hora).</p>
 			</div>
 		{/if}
 
@@ -213,14 +215,14 @@
 			<section class="card block">
 				<h2>Actividad</h2>
 				<div class="charts">
-					<ActivityChart title="Datos nuevos por copia" items={snapshots} value={(s) => s.data_added} format={(v) => formatBytes(v)} />
-					<ActivityChart title="Duración por copia" items={snapshots} value={(s) => s.duration_s} format={(v) => formatDuration(v)} />
+					<ActivityChart title="Datos nuevos por versión" items={snapshots} value={(s) => s.data_added} format={(v) => formatBytes(v)} />
+					<ActivityChart title="Duración por versión" items={snapshots} value={(s) => s.duration_s} format={(v) => formatDuration(v)} />
 				</div>
 			</section>
 
 			<section class="card block">
 				<div class="list-head">
-					<h2>Copias</h2>
+					<h2>Versiones</h2>
 					{#if day}
 						<button class="chip" onclick={() => (day = null)}>
 							<CalendarDays size={13} />
@@ -232,7 +234,7 @@
 					{/if}
 				</div>
 
-				<div class="days" aria-label="Copias en los últimos 60 días">
+				<div class="days" aria-label="Versiones de los últimos 60 días">
 					{#each days as d (d.key)}
 						<button
 							class="d"
@@ -240,15 +242,15 @@
 							class:same={!d.n && d.same}
 							class:on={day === d.key}
 							style:--o={d.n ? 0.35 + 0.65 * (d.n / maxDay) : 1}
-							title="{dayLabel(d.date)}: {d.n ? `${d.n} ${d.n === 1 ? 'copia' : 'copias'}` : d.same ? 'sin cambios' : 'sin copias'}"
+							title="{dayLabel(d.date)}: {d.n ? `${d.n} ${d.n === 1 ? 'versión' : 'versiones'}` : d.same ? 'sin cambios' : 'sin versiones'}"
 							onclick={() => (day = day === d.key ? null : d.key)}
 							disabled={!d.n}
 						></button>
 					{/each}
 				</div>
 				<p class="faint small">
-					Últimos 60 días · toca un día para ver sus copias.{#if unchangedDays.size}
-						Con borde: se revisó y no había cambios.{/if}
+					Últimos 60 días · toca un día para ver sus versiones.{#if unchangedDays.size}
+						{' '}Con borde: se revisó y no había cambios.{/if}
 				</p>
 
 				{#each groups as g (g.day)}
@@ -259,7 +261,7 @@
 								{formatTime(s.time)}
 								{#if s.duration_s != null}<small>{formatDuration(s.duration_s)}</small>{/if}
 							</span>
-							<span class="id mono">{s.snapshot_id}</span>
+							<span class="id mono" title="Versión {s.snapshot_id}">{s.snapshot_id.slice(0, 8)}</span>
 							<span class="changes faint">
 								{#if s.files_new != null}{formatNumber(s.files_new)} nuevos · {formatNumber(s.files_changed ?? 0)} modif.{/if}
 							</span>
@@ -304,30 +306,6 @@
 		flex-wrap: wrap;
 		margin: 3px 0 0;
 		font-size: 13px;
-	}
-	.badge {
-		flex: none;
-		padding: 0 10px;
-		font-size: 12px;
-		font-weight: 650;
-		line-height: 26px;
-		border-radius: 999px;
-		color: var(--lvl, var(--text-2));
-		background: color-mix(in srgb, var(--lvl, var(--text-3)) 13%, transparent);
-	}
-	.lvl-ok {
-		--lvl: var(--success);
-	}
-	.lvl-late {
-		--lvl: var(--warn);
-	}
-	.lvl-overdue,
-	.lvl-failed {
-		--lvl: var(--danger);
-	}
-	/* En pausa: estado neutro, ni error ni aviso. */
-	.lvl-paused {
-		--lvl: var(--text-3);
 	}
 	.hold {
 		border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
@@ -512,14 +490,6 @@
 	.tags {
 		display: flex;
 		gap: 4px;
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 	/* Esqueletos de carga */
 	.skel-head {

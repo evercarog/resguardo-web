@@ -13,28 +13,15 @@
 </script>
 
 <script lang="ts">
-	import {
-		ArrowRight,
-		CalendarClock,
-		CircleAlert,
-		CircleCheck,
-		CircleDashed,
-		CirclePause,
-		Clock,
-		CloudOff,
-		CloudUpload,
-		HardDrive,
-		Hand,
-		LoaderCircle,
-		ShieldAlert,
-		ShieldCheck,
-		TriangleAlert,
-		XCircle
-	} from '@lucide/svelte';
+	import { ArrowRight, CalendarClock, CircleCheck, CirclePause, Clock, CloudOff, CloudUpload, HardDrive, Hand, LoaderCircle, ShieldCheck } from '@lucide/svelte';
+	import RelTime from '$lib/components/RelTime.svelte';
+	import RunResult from '$lib/components/RunResult.svelte';
+	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
-	import { formatBytes, formatDate, formatDuration, formatNumber, formatRelative, formatTime } from '$lib/format';
+	import { formatBytes, formatDate, formatDuration, formatNumber, formatTime } from '$lib/format';
 	import {
 		OFFSITE_PROVIDERS,
+		chipLevel,
 		deviceOnline,
 		elapsedLabel,
 		holdSummary,
@@ -51,7 +38,7 @@
 		taskRunning,
 		verifyModeLabel
 	} from '$lib/status';
-	import type { Device, Repo, TaskRun } from '$lib/types';
+	import type { Device, Repo } from '$lib/types';
 
 	// Tarjeta de un destino en Estado: copias locales, nube, verificación y planes.
 	let {
@@ -62,8 +49,9 @@
 		now
 	}: { repo: Repo; status: ReturnType<typeof repoStatus>; device: Device | null; days: DayMark[] | null; now: number } = $props();
 
-	const ICON = { ok: CircleCheck, late: Clock, overdue: TriangleAlert, failed: XCircle, empty: CircleDashed, paused: CirclePause };
-	const Icon = $derived(ICON[status.level]);
+	const level = $derived(chipLevel(repo, status.level));
+	/** Prefijo único para los id de las secciones (aria-labelledby). */
+	const uid = $derived(`rc-${repo.device_id}-${repo.repo_id}`.replace(/[^A-Za-z0-9_-]/g, '_'));
 	const href = $derived(`/repo/${repo.device_id}/${encodeURIComponent(repo.repo_id)}`);
 	const online = $derived(device ? deviceOnline(device, now) : false);
 	const running = $derived(runningSince(repo, now));
@@ -100,44 +88,27 @@
 				? 'falló'
 				: d.same
 					? 'sin cambios'
-					: 'sin copias';
+					: 'sin versiones';
 		return `${dayFmt.format(d.date)}: ${what}`;
 	}
 	const maxDay = $derived(Math.max(1, ...(days ?? []).map((d) => d.n)));
 </script>
 
-{#snippet result(run: TaskRun | null | undefined, empty: string)}
-	{#if run}
-		<span class="res res-{run.result}" title={run.finished ? formatDate(run.finished) : ''}>
-			{#if run.result === 'ok'}<CircleCheck size={13} />{:else if run.result === 'warning'}<TriangleAlert size={13} />{:else}<CircleAlert
-					size={13}
-				/>{/if}
-			{run.result === 'error' ? 'Falló' : run.result === 'warning' ? 'Con avisos' : 'Bien'} · {formatRelative(run.finished ?? run.started, now)}
-		</span>
-	{:else}
-		<span class="faint">{empty}</span>
-	{/if}
-{/snippet}
-
-<article class="card dest lvl-{status.level}" class:held={!!repo.offsite_hold}>
+<article class="card dest lvl-{level}">
 	<header class="top">
 		<div class="title">
 			<h3><a {href}>{repo.name}</a></h3>
 			<span class="faint sub">
-				<span class="dot" class:online title={online ? 'Conectado' : 'Sin conexión'}></span>
-				<span class="sr-only">{online ? 'Conectado' : 'Sin conexión'} ·</span>
-				{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''}
+				<span class="dot" class:online aria-hidden="true"></span>
+				<span class="sr-only">{online ? 'Equipo conectado:' : 'Equipo sin conexión:'}</span>
+				<span title={online ? 'Conectado' : 'Sin conexión'}>{device?.name ?? 'Equipo'}</span> · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''}
 			</span>
 		</div>
-		{#if repo.offsite_hold}
-			<span class="badge lvl-failed"><ShieldAlert size={13} />Cambio inusual</span>
-		{:else}
-			<span class="badge lvl-{status.level}"><Icon size={13} />{status.label}</span>
-		{/if}
+		<StatusChip {level} />
 	</header>
 
 	{#if running}
-		<p class="runline"><span class="spin"><LoaderCircle size={13} /></span> Copiando ahora · desde {formatTime(running.toISOString())}</p>
+		<p class="runline"><span class="spin"><LoaderCircle size={13} aria-hidden="true" /></span> Copiando ahora · desde las {formatTime(running.toISOString())}</p>
 	{/if}
 	{#if status.level === 'failed' && repo.last_run?.message}
 		<p class="err">{repo.last_run.message}</p>
@@ -146,49 +117,47 @@
 	{/if}
 	{#if repo.offsite_hold && !off}
 		<p class="err hold">
-			<CloudOff size={13} />
+			<CloudOff size={13} aria-hidden="true" />
 			<span><strong>Subida frenada:</strong> {holdSummary(repo.offsite_hold, now)} Revísalo en Resguardo.</span>
 		</p>
 	{/if}
 	{#if status.pause.active}
-		<p class="pauseline"><CirclePause size={13} /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
+		<p class="pauseline"><CirclePause size={13} aria-hidden="true" /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
 	{/if}
 
-	<!-- Copias locales -->
-	<section class="sec" aria-label="Copias locales">
-		<h4><HardDrive size={14} /> Copia local</h4>
+	<!-- Copia local -->
+	<section class="sec" aria-labelledby="{uid}-local">
+		<h4 class="section-title" id="{uid}-local"><HardDrive size={14} aria-hidden="true" /> Copia local</h4>
 		<div class="facts">
 			<div>
 				<span class="k">Última versión</span>
 				{#if status.last}
-					<span class="v" title={formatDate(status.last)}>{formatRelative(status.last, now)}</span>
+					<span class="v"><RelTime iso={status.last} {now} /></span>
 					<span class="faint small">
 						{[repo.last_data_added != null ? `+${formatBytes(repo.last_data_added)}` : null, repo.last_duration_s != null ? formatDuration(repo.last_duration_s) : null]
 							.filter(Boolean)
 							.join(' · ')}
 					</span>
 				{:else}
-					<span class="v faint">sin copias</span>
+					<span class="v faint">todavía ninguna</span>
 				{/if}
 			</div>
 			<div>
 				<span class="k">Próxima</span>
-				<span class="v">{status.pause.active ? 'en pausa' : next ? nextLabel(next) : '—'}</span>
+				<span class="v" title={next ? formatDate(next.toISOString()) : undefined}>{status.pause.active ? 'en pausa' : next ? nextLabel(next) : '—'}</span>
 				<span class="faint small">{repoScheduleLabel(repo)}</span>
 			</div>
 			<div>
 				<span class="k">Versiones</span>
 				<span class="v">{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</span>
-				<span class="faint small">{formatBytes(repo.last_total_bytes)} protegidos</span>
+				<span class="faint small">{repo.last_total_bytes != null ? `${formatBytes(repo.last_total_bytes)} protegidos` : 'nada guardado todavía'}</span>
 			</div>
 		</div>
 		{#if status.unchangedAt}
-			<p class="faint small" title={formatDate(status.unchangedAt)}>
-				Última revisión {formatRelative(status.unchangedAt, now)} · sin cambios
-			</p>
+			<p class="faint small">Última revisión <RelTime iso={status.unchangedAt} {now} /> · sin cambios</p>
 		{/if}
 		{#if days}
-			<div class="strip" role="img" aria-label="Últimos 14 días: {days.filter((d) => d.n || d.same).length} con copia">
+			<div class="strip" role="img" aria-label="Últimos 14 días: {days.filter((d) => d.n || d.same).length} con versión o revisión sin cambios">
 				{#each days as d (d.key)}
 					<span
 						class="d"
@@ -204,12 +173,14 @@
 	</section>
 
 	<!-- Nube (copia externa) -->
-	{#if off}
-		<section class="sec" aria-label="Copia en la nube">
-			<h4><CloudUpload size={14} /> Nube · {target}</h4>
+	<section class="sec" aria-labelledby="{uid}-cloud">
+		<h4 class="section-title" id="{uid}-cloud">
+			<CloudUpload size={14} aria-hidden="true" /> Nube{#if off}<span class="target">· {target}</span>{/if}
+		</h4>
+		{#if off}
 			{#if repo.offsite_hold}
 				<p class="err hold">
-					<CloudOff size={13} />
+					<CloudOff size={13} aria-hidden="true" />
 					<span><strong>Subida frenada:</strong> {holdSummary(repo.offsite_hold, now)} Revísalo en Resguardo.</span>
 				</p>
 			{/if}
@@ -217,32 +188,37 @@
 				<TaskProgress {repo} {device} {now} />
 			{/if}
 			<div class="line">
-				{@render result(repo.offsite_run, 'todavía ninguna subida')}
+				<span>Última subida: <RunResult run={repo.offsite_run} {now} empty="todavía ninguna" /></span>
 				{#if repo.offsite_run?.message}<span class="faint small msg">{repo.offsite_run.message}</span>{/if}
 			</div>
 			<div class="line small">
 				<span class="faint">{off.schedule ? offsiteScheduleLabel(off.schedule) : 'programada'}</span>
-				<span class="sync" class:ok={cloud.ok}>{cloud.text}</span>
+				<span class="sync" class:ok={cloud.ok}>
+					{#if cloud.ok}<CircleCheck size={13} aria-hidden="true" />{:else}<Clock size={13} aria-hidden="true" />{/if}
+					{cloud.text}
+				</span>
 			</div>
 			{#if cloudVerify}
 				<p class="small vline v-{cloudVerify.result ?? 'none'}">
-					<ShieldCheck size={13} />
+					<ShieldCheck size={13} aria-hidden="true" />
 					<span>{cloudVerify.text}{#if cloudVerify.rotation}<br /><span class="faint">{cloudVerify.rotation}</span>{/if}</span>
 				</p>
 				{#if cloudVerify.message}<p class="err">{cloudVerify.message}</p>{/if}
 			{/if}
-		</section>
-	{/if}
+		{:else}
+			<p class="faint small">Sin copia externa: todas las versiones están en un solo lugar.</p>
+		{/if}
+	</section>
 
 	<!-- Verificación -->
-	<section class="sec" aria-label="Verificación">
-		<h4><ShieldCheck size={14} /> Verificación</h4>
+	<section class="sec" aria-labelledby="{uid}-verify">
+		<h4 class="section-title" id="{uid}-verify"><ShieldCheck size={14} aria-hidden="true" /> Verificación</h4>
 		{#if task?.kind === 'verify'}
 			<TaskProgress {repo} {device} {now} />
 		{/if}
 		{#if verify}
 			<div class="line">
-				{@render result(repo.verify_run, 'todavía ninguna')}
+				<RunResult run={repo.verify_run} {now} />
 				<span class="faint small">{verify.schedule ? scheduleLabel(verify.schedule) : 'programada'}</span>
 			</div>
 			<p class="faint small">{verifyModeLabel(verify, now)}</p>
@@ -254,20 +230,17 @@
 
 	<!-- Copias (planes) -->
 	{#if repo.plans?.length}
-		<section class="sec" aria-label="Copias">
-			<h4><CalendarClock size={14} /> Copias</h4>
+		<section class="sec" aria-labelledby="{uid}-plans">
+			<h4 class="section-title" id="{uid}-plans"><CalendarClock size={14} aria-hidden="true" /> Copias</h4>
 			<ul class="plans">
 				{#each repo.plans as p (p.id)}
 					<li>
 						<span class="pname">
-							{#if !p.schedule}<Hand size={12} />{/if}
-							<strong>{p.name}</strong>
+							{#if !p.schedule}<Hand size={12} aria-hidden="true" />{/if}
+							<a href="{href}#copia-{encodeURIComponent(p.id)}"><strong>{p.name}</strong></a>
 							<span class="faint small">{p.schedule ? planScheduleLabel(p.schedule) : 'Solo a mano'}</span>
 						</span>
-						<span class="pres">
-							{@render result(p.last_run, 'todavía ninguna')}
-							{#if p.last_run && p.last_run.result !== 'error' && p.last_run.unchanged}<span class="faint small"> · sin cambios</span>{/if}
-						</span>
+						<span class="pres"><RunResult run={p.last_run} {now} /></span>
 						{#if p.last_run?.result === 'error' && p.last_run.message}<span class="err small pmsg">{p.last_run.message}</span>{/if}
 					</li>
 				{/each}
@@ -276,7 +249,7 @@
 	{/if}
 
 	<footer class="foot">
-		<a class="more" {href}>Ver detalle <ArrowRight size={14} /></a>
+		<a class="more" {href}>Ver detalle <ArrowRight size={14} aria-hidden="true" /></a>
 	</footer>
 </article>
 
@@ -289,23 +262,10 @@
 		padding: 14px 16px 12px;
 		border-top: 3px solid var(--lvl, var(--border));
 	}
-	.dest.held {
-		--lvl: var(--danger);
+	/* Subida frenada por un cambio inusual: todo el borde en rojo. */
+	.dest.lvl-held {
 		border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
 		border-top-color: var(--danger);
-	}
-	.lvl-ok {
-		--lvl: var(--success);
-	}
-	.lvl-late {
-		--lvl: var(--warn);
-	}
-	.lvl-overdue,
-	.lvl-failed {
-		--lvl: var(--danger);
-	}
-	.lvl-paused {
-		--lvl: var(--text-3);
 	}
 	.top {
 		display: flex;
@@ -347,20 +307,6 @@
 	.dot.online {
 		background: var(--success);
 	}
-	.badge {
-		display: inline-flex;
-		flex: none;
-		align-items: center;
-		gap: 4px;
-		padding: 0 9px;
-		font-size: 11.5px;
-		font-weight: 650;
-		line-height: 24px;
-		white-space: nowrap;
-		border-radius: 999px;
-		color: var(--lvl, var(--text-2));
-		background: color-mix(in srgb, var(--lvl, var(--text-3)) 13%, transparent);
-	}
 	.sec {
 		display: flex;
 		flex-direction: column;
@@ -369,15 +315,13 @@
 		border-top: 1px solid var(--border);
 	}
 	h4 {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font-size: 12px;
-		font-weight: 650;
-		letter-spacing: 0.03em;
-		text-transform: uppercase;
-		color: var(--text-3);
 		overflow-wrap: anywhere;
+	}
+	/* El nombre del destino en la nube, tal cual (sin mayúsculas). */
+	.target {
+		font-weight: 600;
+		letter-spacing: 0;
+		text-transform: none;
 	}
 	.facts {
 		display: grid;
@@ -452,27 +396,14 @@
 		overflow-wrap: anywhere;
 	}
 	.sync {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		font-weight: 600;
 		color: var(--warn);
 	}
 	.sync.ok {
 		color: var(--success);
-	}
-	.res {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		font-weight: 600;
-		white-space: nowrap;
-	}
-	.res-ok {
-		color: var(--success);
-	}
-	.res-warning {
-		color: var(--warn);
-	}
-	.res-error {
-		color: var(--danger);
 	}
 	.plans {
 		display: flex;
@@ -501,6 +432,13 @@
 	}
 	.pname strong {
 		font-weight: 600;
+	}
+	.pname a {
+		color: inherit;
+		text-decoration: none;
+	}
+	.pname a:hover {
+		text-decoration: underline;
 	}
 	.pmsg {
 		grid-column: 1 / -1;
@@ -571,14 +509,6 @@
 	}
 	.more:hover {
 		text-decoration: underline;
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 	@media (max-width: 520px) {
 		.facts {
