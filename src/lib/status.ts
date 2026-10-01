@@ -1,6 +1,6 @@
 // Estado de un repositorio y de un equipo (misma lógica que la app de escritorio).
 import { bogota, bogotaTime, dayKey, formatBytes, formatDate, formatNumber, formatRelative, formatTime } from '$lib/format';
-import type { Device, OffsiteHold, OffsiteSchedule, PlanSchedule, Repo, Schedule, VerifyConfig } from '$lib/types';
+import type { Device, OffsiteHold, OffsiteSchedule, PlanSchedule, Protection, Repo, Schedule, VerifyConfig } from '$lib/types';
 
 const HOUR = 3_600_000;
 
@@ -162,6 +162,29 @@ export function offsiteVerifySummary(repo: Repo, now = Date.now()) {
 	};
 }
 
+/** «Restaura 20 archivos (hasta 500 MB) y los compara». */
+export function restoreTestLabel(t: { files: number | null; max_mb: number | null }) {
+	const files = t.files ? `${t.files} ${t.files === 1 ? 'archivo' : 'archivos'} al azar` : 'archivos al azar';
+	const max = t.max_mb ? ` (hasta ${t.max_mb >= 1024 ? `${Math.round(t.max_mb / 102.4) / 10} GB` : `${t.max_mb} MB`})` : '';
+	return `restaura ${files}${max} y los compara`;
+}
+
+/**
+ * Resumen de la salud de la protección, igual que en la app de escritorio:
+ * «Protección 6 de 7 · 1 por revisar» (o «· todo en orden») y el tono del
+ * anillo según la proporción (todo = bien, desde el 60 % = aviso, menos = mal).
+ */
+export function protectionSummary(p: Protection) {
+	const ratio = p.score / Math.max(1, p.total);
+	const issues = p.items.filter((i) => i.state !== 'ok').length;
+	return {
+		ratio,
+		tone: (ratio >= 0.999 ? 'ok' : ratio >= 0.6 ? 'warn' : 'bad') as 'ok' | 'warn' | 'bad',
+		issues,
+		text: `Protección ${p.score} de ${p.total} · ${issues ? `${issues} por revisar` : 'todo en orden'}`
+	};
+}
+
 /** Horario de la copia externa (también «después de cada copia con cambios»). */
 export function offsiteScheduleLabel(s: OffsiteSchedule | null) {
 	if (s?.kind === 'after_backup') {
@@ -222,7 +245,13 @@ export function taskProgress(repo: Repo, now = Date.now()) {
 	const off = repo.maintenance?.offsite;
 	const target = off?.target_name ?? (off ? `${repo.name} · ${OFFSITE_PROVIDERS[off.provider] ?? 'copia externa'}` : 'la copia externa');
 	const title =
-		t.kind === 'verify' ? `Verificando «${repo.name}»` : t.kind === 'verify_offsite' ? `Verificando la copia en «${target}»` : `Subiendo a «${target}»`;
+		t.kind === 'verify'
+			? `Verificando «${repo.name}»`
+			: t.kind === 'verify_offsite'
+				? `Verificando la copia en «${target}»`
+				: t.kind === 'restore_test'
+					? `Probando la restauración de «${repo.name}»`
+					: `Subiendo a «${target}»`;
 	const hasTotal = num(t.total) && t.total > 0;
 	const hasBytes = num(t.bytes_total) && t.bytes_total > 0 && num(t.bytes_done);
 	// El equipo envía el porcentaje como fracción (0 a 1).
@@ -237,7 +266,7 @@ export function taskProgress(repo: Repo, now = Date.now()) {
 	if (percent !== null) parts.push(`${Math.floor(percent)} %`);
 	if (num(t.eta_s) && t.eta_s > 0) parts.push(`quedan ~${elapsedLabel(t.eta_s / 3600)}`);
 	// Sin progreso medible: la etapa y cuánto lleva.
-	if (!parts.length) parts.push(t.stage || (t.kind === 'offsite' ? 'Subiendo…' : 'Verificando…'), `desde hace ${elapsedLabel((now - new Date(t.started).getTime()) / HOUR)}`);
+	if (!parts.length) parts.push(t.stage || (t.kind === 'offsite' ? 'Subiendo…' : t.kind === 'restore_test' ? 'Restaurando archivos de prueba…' : 'Verificando…'), `desde hace ${elapsedLabel((now - new Date(t.started).getTime()) / HOUR)}`);
 	return { task: t, title, detail: parts.join(' · '), percent };
 }
 

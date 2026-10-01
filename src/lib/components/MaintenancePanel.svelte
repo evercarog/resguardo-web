@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { CloudUpload, LoaderCircle, ShieldCheck } from '@lucide/svelte';
+	import { ArchiveRestore, CloudUpload, LoaderCircle, ShieldCheck } from '@lucide/svelte';
 	import RunResult from '$lib/components/RunResult.svelte';
-	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, offsiteVerifySummary, scheduleLabel, taskProgress, verifyModeLabel } from '$lib/status';
+	import { OFFSITE_PROVIDERS as PROVIDERS, offsiteScheduleLabel, offsiteVerifySummary, restoreTestLabel, scheduleLabel, taskProgress, verifyModeLabel } from '$lib/status';
 	import type { Repo, TaskRun } from '$lib/types';
 
 	// Verificación y copia externa del repositorio, tal como las informa el equipo.
@@ -23,7 +23,7 @@
 	{/if}
 {/snippet}
 
-{#if m?.verify || m?.offsite}
+{#if m?.verify || m?.offsite || m?.restore_test}
 	<section class="card maint">
 		<h2>Mantenimiento</h2>
 		<div class="rows">
@@ -45,6 +45,31 @@
 						<span class="live"><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Verificando…'}{progress?.percent != null ? ` · ${Math.floor(progress.percent)} %` : ''}</span>
 					{:else if m?.verify}
 						{@render result(repo.verify_run)}
+					{/if}
+				</div>
+			</div>
+
+			<div class="row" class:off={!m?.restore_test}>
+				<span class="ic"><ArchiveRestore size={16} /></span>
+				<div class="what">
+					<strong>Prueba de restauración</strong>
+					<span class="faint">
+						{#if m?.restore_test}
+							{m.restore_test.schedule ? scheduleLabel(m.restore_test.schedule) : 'programada'} · {restoreTestLabel(m.restore_test)}
+						{:else}
+							No programada: nadie comprueba que las copias se puedan recuperar
+						{/if}
+					</span>
+				</div>
+				<div class="state">
+					{#if running?.kind === 'restore_test'}
+						<span class="live"
+							><span class="spin"><LoaderCircle size={13} /></span>{running.stage || 'Restaurando archivos de prueba…'}{progress?.percent != null
+								? ` · ${Math.floor(progress.percent)} %`
+								: ''}</span
+						>
+					{:else if m?.restore_test}
+						{@render result(repo.restore_test_run ?? null)}
 					{/if}
 				</div>
 			</div>

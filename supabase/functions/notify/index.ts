@@ -178,6 +178,7 @@ async function weeklySummary(
 	const week = `summary:${bogota.toISOString().slice(0, 10)}`;
 	const since = new Date(now.getTime() - 7 * 24 * 3_600_000).toISOString();
 	const paused = await pausedByOwner(admin, now);
+	const weak = await badProtectionByOwner(admin);
 	let sent = 0;
 	for (const owner of subscribed) {
 		if (states.some((s) => s.owner === owner && s.alert_key === week)) continue;
@@ -206,12 +207,16 @@ async function weeklySummary(
 		if (late) parts.push(`${late} con retraso`);
 		if (failed) parts.push(`${failed} con fallos`);
 		if (onPause) parts.push(`${onPause} en pausa`);
+		// Puntos en rojo de la salud de la protección: como mucho 3, el resto se cuenta.
+		const red = weak.get(owner) ?? [];
+		const redText = red.length ? ` Por revisar: ${red.slice(0, 3).join('; ')}${red.length > 3 ? ` y ${red.length - 3} más` : ''}.` : '';
 		sent += await sendTo(admin, owner, {
-			title: failed || late || held ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
+			title: failed || late || held || red.length ? 'Resumen semanal: hay cosas por revisar' : 'Resumen semanal: todo en orden',
 			body:
 				`${count ?? 0} copias en los últimos 7 días` +
 				(unchanged ? ` (y ${unchanged} ${unchanged === 1 ? 'revisión' : 'revisiones'} sin cambios)` : '') +
-				` · destinos: ${parts.join(', ')}.`,
+				` · destinos: ${parts.join(', ')}.` +
+				redText,
 			url: '/',
 			tag: 'resumen-semanal'
 		});
@@ -243,6 +248,39 @@ async function pausedByOwner(admin: SupabaseClient, now: Date) {
 		if (r.paused_until && new Date(r.paused_until).getTime() <= now.getTime()) continue;
 		if ((r.last_run as { result?: string } | null)?.result === 'error') continue;
 		out.set(r.owner, (out.get(r.owner) ?? 0) + 1);
+	}
+	return out;
+}
+
+/**
+ * Puntos en rojo («bad») de la salud de la protección por usuario, como
+ * «Siigo: sin copia externa», de equipos no desvinculados. Si la consulta
+ * falla (p. ej. aún sin la migración), ninguno.
+ */
+async function badProtectionByOwner(admin: SupabaseClient) {
+	const out = new Map<string, string[]>();
+	const [{ data: repos, error: e1 }, { data: revoked, error: e2 }] = await Promise.all([
+		admin.from('repos').select('owner, device_id, name, protection').not('protection', 'is', null),
+		admin.from('devices').select('id').not('revoked_at', 'is', null)
+	]);
+	if (e1 || e2) {
+		console.error('notify: protección', (e1 ?? e2)!.message);
+		return out;
+	}
+	const gone = new Set((revoked ?? []).map((d) => d.id as string));
+	for (const r of repos ?? []) {
+		if (gone.has(r.device_id)) continue;
+		const items = ((r.protection as { items?: { state?: string; label?: string; detail?: string | null }[] } | null)?.items ?? []).filter(
+			(i) => i.state === 'bad'
+		);
+		for (const i of items) {
+			// Lo esencial del detalle («Sin kit: si pierdes…» → «sin kit»); si no hay, el nombre del punto.
+			const text = ((i.detail ?? '').split(/[:.]/)[0] || i.label || '').trim().slice(0, 80);
+			if (!text) continue;
+			const list = out.get(r.owner) ?? [];
+			list.push(`${r.name}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`);
+			out.set(r.owner, list);
+		}
 	}
 	return out;
 }

@@ -14,6 +14,7 @@
 
 <script lang="ts">
 	import { ArrowRight, CalendarClock, CircleCheck, CirclePause, Clock, CloudOff, CloudUpload, HardDrive, Hand, LoaderCircle, ShieldCheck } from '@lucide/svelte';
+	import ProtectionRing from '$lib/components/ProtectionRing.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import RunResult from '$lib/components/RunResult.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
@@ -31,6 +32,8 @@
 		offsiteVerifySummary,
 		pauseUntilLabel,
 		planScheduleLabel,
+		protectionSummary,
+		restoreTestLabel,
 		repoScheduleLabel,
 		repoStatus,
 		runningSince,
@@ -59,6 +62,7 @@
 	const next = $derived(status.pause.active ? null : nextExpected(repo, now));
 	const off = $derived(repo.maintenance?.offsite ?? null);
 	const verify = $derived(repo.maintenance?.verify ?? null);
+	const restoreTest = $derived(repo.maintenance?.restore_test ?? null);
 	const cloudVerify = $derived(offsiteVerifySummary(repo, now));
 	const target = $derived(off ? (off.target_name ?? OFFSITE_PROVIDERS[off.provider] ?? 'Otra ubicación') : '');
 
@@ -103,6 +107,21 @@
 		</div>
 		<StatusChip {level} />
 	</header>
+
+	{#if repo.protection}
+		{@const prot = protectionSummary(repo.protection)}
+		<a
+			class="prot tone-{prot.tone}"
+			href="{href}#proteccion"
+			title={repo.protection.items
+				.filter((i) => i.state !== 'ok')
+				.map((i) => `${i.label}: ${i.detail ?? ''}`)
+				.join('\n')}
+		>
+			<ProtectionRing protection={repo.protection} />
+			<span>Protección <strong>{repo.protection.score} de {repo.protection.total}</strong> · {prot.issues ? `${prot.issues} por revisar` : 'todo en orden'}</span>
+		</a>
+	{/if}
 
 	{#if running}
 		<p class="runline"><span class="spin"><LoaderCircle size={13} aria-hidden="true" /></span> Copiando ahora · desde las {formatTime(running.toISOString())}</p>
@@ -210,7 +229,7 @@
 	<!-- Verificación -->
 	<section class="sec" aria-labelledby="{uid}-verify">
 		<h4 class="section-title" id="{uid}-verify"><ShieldCheck size={14} aria-hidden="true" /> Verificación</h4>
-		{#if task?.kind === 'verify'}
+		{#if task?.kind === 'verify' || task?.kind === 'restore_test'}
 			<TaskProgress {repo} {device} {now} />
 		{/if}
 		{#if verify}
@@ -222,6 +241,14 @@
 			{#if repo.verify_run?.result === 'error' && repo.verify_run.message}<p class="err">{repo.verify_run.message}</p>{/if}
 		{:else}
 			<p class="faint small">Sin verificación programada.</p>
+		{/if}
+		{#if restoreTest}
+			<div class="line">
+				<span>Prueba de restauración: <RunResult run={repo.restore_test_run} {now} /></span>
+				<span class="faint small">{restoreTest.schedule ? scheduleLabel(restoreTest.schedule) : 'programada'}</span>
+			</div>
+			<p class="faint small">{restoreTestLabel(restoreTest)}</p>
+			{#if repo.restore_test_run?.result === 'error' && repo.restore_test_run.message}<p class="err">{repo.restore_test_run.message}</p>{/if}
 		{/if}
 	</section>
 
@@ -303,6 +330,22 @@
 	}
 	.dot.online {
 		background: var(--success);
+	}
+	/* Salud de la protección (anillo + una línea), enlaza a la lista en el detalle. */
+	.prot {
+		display: inline-flex;
+		align-items: center;
+		align-self: flex-start;
+		gap: 7px;
+		font-size: 12.5px;
+		color: var(--text-2);
+		text-decoration: none;
+	}
+	.prot:hover span {
+		text-decoration: underline;
+	}
+	.prot strong {
+		color: var(--text);
 	}
 	.sec {
 		display: flex;

@@ -56,6 +56,12 @@ export interface Repo {
 	offsite_run: TaskRun | null;
 	/** Última verificación de la copia en la nube (no existe antes de la migración 20260930050000). */
 	offsite_verify_run?: TaskRun | null;
+	/** Última prueba de restauración (no existe antes de la migración 20260930060000). */
+	restore_test_run?: TaskRun | null;
+	/** Cuándo se guardó el kit de recuperación (null = sin kit o caducado). */
+	kit_saved_at?: string | null;
+	/** Salud de la protección, tal como la calcula la app de escritorio. */
+	protection?: Protection | null;
 	/** Verificación o subida en curso. */
 	task_running: TaskRunning | null;
 	/** Planes de copia (versiones con planes; en ese caso `schedule` va vacío). */
@@ -99,6 +105,8 @@ export interface PlanInfo {
 
 export interface Maintenance {
 	verify: VerifyConfig | null;
+	/** Prueba de restauración programada (versiones recientes de la app). */
+	restore_test?: RestoreTestConfig | null;
 	offsite: {
 		schedule: OffsiteSchedule | null;
 		provider: string;
@@ -107,6 +115,23 @@ export interface Maintenance {
 		/** Verificación de la copia en la nube (desde el destino de origen). */
 		verify?: VerifyConfig | null;
 	} | null;
+}
+
+/** Prueba de restauración: restaura `files` archivos al azar (hasta `max_mb` MB) y los compara. */
+export interface RestoreTestConfig {
+	schedule: Schedule | null;
+	files: number | null;
+	max_mb: number | null;
+}
+
+export type ProtectionId = 'copias' | 'borrado' | 'externa' | 'verificacion' | 'restauracion' | 'kit' | 'retencion';
+export type ProtectionState = 'ok' | 'warn' | 'bad' | 'unknown';
+
+/** «Salud de la protección» de un destino: puntos que cumple de los que aplican. */
+export interface Protection {
+	score: number;
+	total: number;
+	items: { id: ProtectionId; state: ProtectionState; label: string; detail: string | null }[];
 }
 
 /** Verificación programada. */
@@ -149,7 +174,7 @@ export interface TaskRun {
 }
 
 export interface TaskRunning {
-	kind: 'verify' | 'offsite' | 'verify_offsite';
+	kind: 'verify' | 'offsite' | 'verify_offsite' | 'restore_test';
 	started: string;
 	stage: string;
 	done: number;

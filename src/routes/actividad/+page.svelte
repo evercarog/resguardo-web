@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import {
+		ArchiveRestore,
 		CircleAlert,
 		CircleCheck,
 		CloudCheck,
@@ -34,7 +35,7 @@
 	};
 	type SnapRow = { device_id: string; repo_id: string; snapshot_id: string; time: string; duration_s: number | null; data_added: number | null };
 	type Result = 'ok' | 'warning' | 'error';
-	type Kind = 'run' | 'snapshot' | 'verify' | 'offsite' | 'verify_offsite';
+	type Kind = 'run' | 'snapshot' | 'verify' | 'offsite' | 'verify_offsite' | 'restore_test';
 
 	/** Una entrada de la línea de tiempo. */
 	interface Entry {
@@ -228,7 +229,8 @@
 			for (const [kind, run] of [
 				['verify', repo.verify_run],
 				['offsite', repo.offsite_run],
-				['verify_offsite', repo.offsite_verify_run]
+				['verify_offsite', repo.offsite_verify_run],
+				['restore_test', repo.restore_test_run]
 			] as const) {
 				if (!run) continue;
 				const time = run.finished ?? run.started;
@@ -279,9 +281,10 @@
 		snapshot: 'Versión guardada',
 		verify: 'Verificación',
 		offsite: 'Subida a la nube',
-		verify_offsite: 'Verificación de la nube'
+		verify_offsite: 'Verificación de la nube',
+		restore_test: 'Prueba de restauración'
 	};
-	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload, verify_offsite: CloudCheck };
+	const KIND_ICON = { run: RefreshCw, snapshot: Save, verify: ShieldCheck, offsite: CloudUpload, verify_offsite: CloudCheck, restore_test: ArchiveRestore };
 	const RESULT_LABEL: Record<Result, string> = { ok: 'Correcta', warning: 'Con avisos', error: 'Falló' };
 	const RESULT_ICON = { ok: CircleCheck, warning: TriangleAlert, error: XCircle };
 	const LVL: Record<Result, string> = { ok: 'ok', warning: 'late', error: 'failed' };
@@ -435,7 +438,8 @@
 			{/if}
 			<p class="faint note">
 				«Versión guardada» son versiones que no corresponden a ninguna copia automática: hechas a mano o por otra herramienta. De la
-				verificación, la subida a la nube y la verificación de la nube se muestra solo el último resultado de cada destino.
+				verificación, la subida a la nube, la verificación de la nube y la prueba de restauración se muestra solo el último resultado de cada
+				destino.
 			</p>
 		{/if}
 	{/if}

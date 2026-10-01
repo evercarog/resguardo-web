@@ -258,7 +258,17 @@
 							<tbody>
 								{#each repos as r (r.repo.repo_id)}
 									<tr>
-										<td><strong>{r.repo.name}</strong><span class="faint small">{kindLabel(r.repo.kind)}</span></td>
+										<td>
+											<strong>{r.repo.name}</strong><span class="faint small">{kindLabel(r.repo.kind)}</span>
+											{#if r.repo.protection}<span class="faint small sub">Protección {r.repo.protection.score} de {r.repo.protection.total}</span>{/if}
+											{#if r.repo.maintenance?.restore_test}
+												<span class="faint small sub"
+													>Restauración: {r.repo.restore_test_run
+														? `${r.repo.restore_test_run.result === 'error' ? 'falló' : r.repo.restore_test_run.result === 'warning' ? 'con avisos' : 'correcta'} el ${formatDate(r.repo.restore_test_run.finished ?? r.repo.restore_test_run.started)}`
+														: 'todavía ninguna'}</span
+												>
+											{/if}
+										</td>
 										<td class="small">{repoScheduleLabel(r.repo)}</td>
 										<td class="num">{r.versions}</td>
 										<td class="num"

@@ -5,6 +5,7 @@
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
+	import ProtectionPanel from '$lib/components/ProtectionPanel.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
@@ -191,6 +192,8 @@
 				<span class="sub">{avgAdded != null ? `+${formatBytes(avgAdded)} por versión` : ''}</span>
 			</div>
 		</div>
+
+		<ProtectionPanel {repo} {now} />
 
 		{#if repo.plans?.length}<PlansPanel plans={repo.plans} {now} />{/if}
 
