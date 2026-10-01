@@ -10,6 +10,8 @@
 	// muestra ningún dato sin ella.
 	let mode = $state<'loading' | 'enroll' | 'verify' | 'newpass'>('loading');
 	let factorId = $state('');
+	/** Autenticadores verificados (si hay más de uno, se elige cuál usar). */
+	let choices = $state<{ id: string; name: string }[]>([]);
 	let qr = $state('');
 	let secret = $state('');
 	let code = $state('');
@@ -32,9 +34,10 @@
 			error = 'No se pudo preparar la verificación. Recarga la página para intentarlo de nuevo.';
 			return;
 		}
-		const verified = data.totp.find((f) => f.status === 'verified');
-		if (verified) {
-			factorId = verified.id;
+		const verified = data.totp.filter((f) => f.status === 'verified');
+		if (verified.length) {
+			choices = verified.map((f, i) => ({ id: f.id, name: f.friendly_name || `Autenticador ${i + 1}` }));
+			factorId = verified[0].id;
 			mode = 'verify';
 			return;
 		}
@@ -124,6 +127,17 @@
 			</details>
 		{/if}
 		<form onsubmit={verify}>
+			{#if mode === 'verify' && choices.length > 1}
+				<fieldset class="choose">
+					<legend>¿Con qué autenticador?</legend>
+					{#each choices as c (c.id)}
+						<label class="opt" class:on={factorId === c.id}>
+							<input type="radio" name="factor" value={c.id} bind:group={factorId} />
+							{c.name}
+						</label>
+					{/each}
+				</fieldset>
+			{/if}
 			<input
 				class="input code"
 				inputmode="numeric"
@@ -185,6 +199,38 @@
 		word-break: break-all;
 		background: var(--surface-2);
 		border-radius: var(--radius-sm);
+	}
+	.choose {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin: 0;
+		padding: 0;
+		border: none;
+	}
+	.choose legend {
+		margin-bottom: 6px;
+		font-size: 13px;
+		font-weight: 600;
+	}
+	.opt {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 40px;
+		padding: 8px 12px;
+		font-size: 14px;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		cursor: pointer;
+	}
+	.opt.on {
+		border-color: var(--accent);
+		background: var(--accent-soft);
+	}
+	.opt input {
+		accent-color: var(--accent);
 	}
 	.code {
 		height: 52px;

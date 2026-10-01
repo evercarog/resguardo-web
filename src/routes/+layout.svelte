@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { Activity, Building2, FileText, History, LogOut, Palette, Plus, WifiOff } from '@lucide/svelte';
+	import { Activity, Building2, FileText, History, LogOut, Palette, Plus, UserRoundCog, WifiOff } from '@lucide/svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import AppearanceDialog from '$lib/components/AppearanceDialog.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -78,6 +78,14 @@
 			</nav>
 			<div class="actions">
 				<button class="icon-btn" title="Apariencia" aria-label="Apariencia" onclick={() => (showAppearance = true)}><Palette size={17} /></button>
+				<a
+					class="icon-btn"
+					class:on={path.startsWith('/cuenta')}
+					href="/cuenta"
+					title="Seguridad de la cuenta"
+					aria-label="Seguridad de la cuenta"
+					aria-current={path.startsWith('/cuenta') ? 'page' : undefined}><UserRoundCog size={17} /></a
+				>
 				<button class="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onclick={() => (confirmLogout = true)}><LogOut size={17} /></button>
 			</div>
 		</header>
@@ -183,6 +191,10 @@
 	.actions {
 		display: flex;
 		gap: 2px;
+	}
+	.actions a.on {
+		color: var(--accent-soft-text);
+		background: var(--accent-soft);
 	}
 	.offline {
 		position: sticky;
