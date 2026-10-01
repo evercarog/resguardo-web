@@ -115,7 +115,7 @@ export function scheduleLabel(s: Schedule | null) {
 	if (s.kind === 'monitor') return `vigilado · se esperan cada ${s.every === 24 ? 'día' : `${s.every} h`}`;
 	if (s.kind === 'hours') return s.every === 1 ? 'cada hora' : `cada ${s.every} h`;
 	if (s.kind === 'daily') return `diaria, ${s.time}`;
-	return `los ${WEEKDAYS[s.weekday]}, ${s.time}`;
+	return `los ${WEEKDAYS_PLURAL[s.weekday]}, ${s.time}`;
 }
 
 /** Horario de la copia externa (también «después de cada copia con cambios»). */
@@ -249,6 +249,60 @@ export function repoScheduleLabel(repo: Repo) {
 	// Varios planes: sus nombres si caben; si no, solo cuántos hay.
 	const names = plans.map((p) => p.name).join(', ');
 	return names.length <= 40 ? `${plans.length} copias: ${names}` : `${plans.length} copias`;
+}
+
+const toMin = (hhmm: string) => {
+	const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+	return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+/** Minutos del día en que un plan lanza copias. */
+function planMinutes(s: PlanSchedule): number[] {
+	if (s.mode === 'at') return s.times.map(toMin).filter((m): m is number => m !== null);
+	const from = toMin(s.from);
+	const to = toMin(s.to);
+	const every = Math.max(1, s.every_hours || 1) * 60;
+	if (from === null || to === null) return [];
+	const out: number[] = [];
+	for (let m = from; m <= to && out.length < 48; m += every) out.push(m);
+	return out;
+}
+
+/**
+ * Próxima copia automática prevista según los planes (o el horario único de
+ * antes), en la hora de este dispositivo. Aproximada: null si no se puede saber.
+ */
+export function nextExpected(repo: Repo, now = Date.now()): Date | null {
+	const base = new Date(now);
+	const at = (dayOffset: number, minute: number) =>
+		new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset, Math.floor(minute / 60), minute % 60);
+	let best: Date | null = null;
+	const consider = (d: Date) => {
+		if (d.getTime() > now && (!best || d < best)) best = d;
+	};
+	const plans = (repo.plans ?? []).filter((p) => p.schedule);
+	for (const p of plans) {
+		const mins = planMinutes(p.schedule!);
+		for (let off = 0; off <= 7; off++) {
+			const wd = (new Date(base.getFullYear(), base.getMonth(), base.getDate() + off).getDay() + 6) % 7;
+			if (!p.schedule!.days.includes(wd)) continue;
+			for (const m of mins) consider(at(off, m));
+		}
+	}
+	if (!plans.length && repo.schedule) {
+		const s = repo.schedule;
+		if (s.kind === 'daily' || s.kind === 'weekly') {
+			const m = toMin(s.time);
+			if (m !== null)
+				for (let off = 0; off <= 7; off++) {
+					const wd = (new Date(base.getFullYear(), base.getMonth(), base.getDate() + off).getDay() + 6) % 7;
+					if (s.kind === 'daily' || s.weekday === wd) consider(at(off, m));
+				}
+		} else if (s.kind === 'hours' && repo.last_snapshot_at) {
+			consider(new Date(new Date(repo.last_snapshot_at).getTime() + s.every * HOUR));
+		}
+	}
+	return best;
 }
 
 /** «hasta el 3 oct 2026, 18:00» o «hasta que se reanude». */

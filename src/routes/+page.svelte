@@ -3,39 +3,22 @@
 	import {
 		CircleAlert,
 		CircleCheck,
-		CircleDashed,
-		CirclePause,
 		CloudOff,
 		Clock,
-		LoaderCircle,
 		Monitor,
 		MoreHorizontal,
 		Plus,
 		RefreshCw,
 		TriangleAlert,
 		Wifi,
-		WifiOff,
-		XCircle
+		WifiOff
 	} from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
-	import TaskProgress from '$lib/components/TaskProgress.svelte';
+	import RepoCard, { type DayMark } from '$lib/components/RepoCard.svelte';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
-	import { formatBytes, formatDate, formatDuration, formatRelative, formatTime } from '$lib/format';
-	import {
-		LEVEL_ORDER,
-		deviceOnline,
-		elapsedLabel,
-		HOLD_ADVICE,
-		holdSummary,
-		kindLabel,
-		pauseUntilLabel,
-		repoScheduleLabel,
-		repoStatus,
-		runningSince,
-		taskRunning,
-		type Level
-	} from '$lib/status';
+	import { formatDate, formatRelative } from '$lib/format';
+	import { HOLD_ADVICE, LEVEL_ORDER, deviceOnline, holdSummary, repoStatus, type Level } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device } from '$lib/types';
 
@@ -45,11 +28,84 @@
 	/** Diálogo abierto: cambiar nombre o desvincular un equipo. */
 	let dialog = $state<{ kind: 'rename' | 'remove'; device: Device } | null>(null);
 
+	/** Últimos 14 días por destino ("equipo|destino" → día → marcas), en dos consultas por carga. */
+	let history = $state<Map<string, Map<string, { n: number; same: boolean; failed: boolean }>> | null>(null);
+	const pad = (n: number) => String(n).padStart(2, '0');
+	const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+	/** El servidor entrega como mucho 1000 filas por consulta: se piden por páginas. */
+	async function pages<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>) {
+		const out: T[] = [];
+		for (let start = 0; start < 20_000; start += 1000) {
+			const { data, error: e } = await query(start, start + 999);
+			if (e) throw new Error(e.message);
+			const rows = (data ?? []) as T[];
+			out.push(...rows);
+			if (rows.length < 1000) break;
+		}
+		return out;
+	}
+
+	async function loadHistory() {
+		const t = new Date();
+		const from = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 13).toISOString();
+		try {
+			const [snaps, runs] = await Promise.all([
+				pages<{ device_id: string; repo_id: string; time: string }>((a, z) =>
+					supabase.from('snapshots').select('device_id, repo_id, time').gte('time', from).order('time').range(a, z)
+				),
+				pages<{ device_id: string; repo_id: string; started_at: string; finished_at: string | null; result: string; unchanged?: boolean }>(
+					(a, z) => supabase.from('runs').select('*').gte('started_at', from).order('started_at').range(a, z)
+				)
+			]);
+			const out = new Map<string, Map<string, { n: number; same: boolean; failed: boolean }>>();
+			const mark = (dev: string, repo: string, iso: string) => {
+				const k = `${dev}|${repo}`;
+				let m = out.get(k);
+				if (!m) out.set(k, (m = new Map()));
+				const day = dayKey(new Date(iso));
+				let v = m.get(day);
+				if (!v) m.set(day, (v = { n: 0, same: false, failed: false }));
+				return v;
+			};
+			for (const x of snaps) mark(x.device_id, x.repo_id, x.time).n++;
+			for (const x of runs) {
+				const v = mark(x.device_id, x.repo_id, x.finished_at ?? x.started_at);
+				if (x.result === 'error') v.failed = true;
+				else if (x.unchanged) v.same = true;
+			}
+			history = out;
+		} catch {
+			// Sin la tira de días si falla: el resto del estado sigue funcionando.
+			history = null;
+		}
+	}
+
+	/** Las 14 casillas (de hace 13 días a hoy) de un destino. */
+	function daysOf(deviceId: string, repoId: string): DayMark[] | null {
+		if (!history) return null;
+		const m = history.get(`${deviceId}|${repoId}`);
+		const t = new Date(now);
+		return Array.from({ length: 14 }, (_, i) => {
+			const date = new Date(t.getFullYear(), t.getMonth(), t.getDate() - (13 - i));
+			const key = dayKey(date);
+			const v = m?.get(key);
+			return { key, date, n: v?.n ?? 0, same: v?.same ?? false, failed: v?.failed ?? false };
+		});
+	}
+
 	onMount(() => {
 		// El tiempo real se conecta cuando la primera carga funcionó (misma sesión válida).
-		loadAll().then(() => db.loaded && subscribe());
+		loadAll().then(() => {
+			if (db.loaded) {
+				subscribe();
+				loadHistory();
+			}
+		});
 		const t = setInterval(() => (now = Date.now()), 30_000);
-		const onVisible = () => document.visibilityState === 'visible' && loadAll();
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') loadAll().then(() => (db.loaded ? loadHistory() : undefined));
+		};
 		document.addEventListener('visibilitychange', onVisible);
 		return () => {
 			clearInterval(t);
@@ -60,6 +116,7 @@
 	async function refresh() {
 		refreshing = true;
 		await loadAll();
+		if (db.loaded) await loadHistory();
 		refreshing = false;
 	}
 
@@ -120,7 +177,6 @@
 			.reduce<string | null>((max, v) => (!max || versionLess(max, v) ? v : max), null)
 	);
 
-	const ICON = { ok: CircleCheck, late: Clock, overdue: TriangleAlert, failed: XCircle, empty: CircleDashed, paused: CirclePause };
 
 	async function moveDevice(d: Device, clientId: string) {
 		menu = null;
@@ -270,65 +326,11 @@
 							{#if repos.length === 0}
 								<p class="faint empty">Este equipo aún no tiene copias automáticas programadas.</p>
 							{:else}
-								<ul class="repos">
+								<div class="dests">
 									{#each repos as { repo, status } (repo.repo_id)}
-										{@const Icon = ICON[status.level]}
-										{@const running = runningSince(repo, now)}
-										<li class="repo lvl-{status.level}">
-											<a class="cover" href="/repo/{repo.device_id}/{encodeURIComponent(repo.repo_id)}" aria-label="Ver {repo.name}"></a>
-											<span class="badge lvl-{status.level}"><Icon size={13} />{status.label}</span>
-											<div class="repo-main">
-												<strong>{repo.name}</strong>
-												<span class="faint">{kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}</span>
-											</div>
-											<div class="repo-facts">
-												{#if status.last}
-													<span title={formatDate(status.last)}>{formatRelative(status.last)}</span>
-													<span class="faint">
-														{#if repo.last_duration_s != null}{formatDuration(repo.last_duration_s)}{/if}
-														{#if repo.last_data_added != null} · +{formatBytes(repo.last_data_added)}{/if}
-													</span>
-													{#if status.unchangedAt}
-														<span class="faint" title={formatDate(status.unchangedAt)}>última revisión {formatRelative(status.unchangedAt, now)} · sin cambios</span>
-													{/if}
-												{:else}
-													<span class="faint">sin copias</span>
-												{/if}
-											</div>
-											{#if running}
-												<p class="runline">
-													<span class="spin"><LoaderCircle size={13} /></span>
-													Copiando ahora · desde {formatTime(running.toISOString())}
-												</p>
-											{:else if taskRunning(repo, now)}
-												<!-- Verificación o subida a la copia externa, con su progreso -->
-												<div class="taskline"><TaskProgress {repo} device={d} {now} /></div>
-											{/if}
-											{#if repo.offsite_hold}
-												<p class="err"><strong>Subida a la nube frenada:</strong> cambio inusual, revísalo en Resguardo</p>
-											{/if}
-											{#if repo.maintenance?.offsite && repo.offsite_run?.result === 'error'}
-												<p class="err">Copia externa: {repo.offsite_run.message ?? 'falló'}</p>
-											{/if}
-											{#if repo.maintenance?.verify && repo.verify_run?.result === 'error'}
-												<p class="err">Verificación: {repo.verify_run.message ?? 'falló'}</p>
-											{/if}
-											{#if status.level !== 'failed'}
-												{#each (repo.plans ?? []).filter((p) => p.last_run?.result === 'error') as p (p.id)}
-													<p class="err">Copia «{p.name}»: {p.last_run?.message ?? 'falló'}</p>
-												{/each}
-											{/if}
-											{#if status.level === 'failed' && repo.last_run?.message}
-												<p class="err">{repo.last_run.message}</p>
-											{:else if (status.level === 'late' || status.level === 'overdue') && status.since !== null}
-												<p class="warnline">{elapsedLabel(status.since - status.expected)} de retraso</p>
-											{/if}
-											{#if status.pause.active}
-												<p class="pauseline"><CirclePause size={13} /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
-											{/if}
-										</li>
+										<RepoCard {repo} {status} device={d} days={daysOf(d.id, repo.repo_id)} {now} />
 									{/each}
-								</ul>
+								</div>
 							{/if}
 						</article>
 					{/each}
@@ -508,12 +510,25 @@
 		color: var(--text-3);
 	}
 	.devices {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+		display: flex;
+		flex-direction: column;
 		gap: 12px;
+	}
+	/* Destinos del equipo: tarjetas grandes, 2 por fila (1 en pantallas estrechas). */
+	.dests {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+		align-items: start;
+	}
+	@media (max-width: 860px) {
+		.dests {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 	.device {
 		padding: 14px 16px;
+		background: var(--surface-2);
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
@@ -623,133 +638,6 @@
 		margin: 0;
 		font-size: 13px;
 	}
-	.repos {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-	.repo {
-		position: relative;
-		transition: border-color 0.15s, background 0.15s;
-		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 10px;
-		padding: 9px 11px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-left: 3px solid var(--lvl, var(--border));
-		border-radius: var(--radius);
-	}
-	.repo:hover {
-		background: var(--surface-3);
-	}
-	/* Toda la fila es un enlace a la página del repositorio. */
-	.cover {
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		z-index: 1;
-	}
-	.lvl-ok {
-		--lvl: var(--success);
-	}
-	.lvl-late {
-		--lvl: var(--warn);
-	}
-	.lvl-overdue,
-	.lvl-failed {
-		--lvl: var(--danger);
-	}
-	/* En pausa: estado neutro, ni error ni aviso. */
-	.lvl-paused {
-		--lvl: var(--text-3);
-	}
-	.badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 0 8px;
-		font-size: 11.5px;
-		font-weight: 650;
-		line-height: 22px;
-		white-space: nowrap;
-		border-radius: 999px;
-		color: var(--lvl, var(--text-2));
-		background: color-mix(in srgb, var(--lvl, var(--text-3)) 13%, transparent);
-	}
-	.repo-main {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-	.repo-main strong {
-		font-size: 13.5px;
-	}
-	.repo-main .faint {
-		font-size: 12px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.repo-facts {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		font-size: 12.5px;
-		white-space: nowrap;
-	}
-	.repo-facts .faint {
-		font-size: 11.5px;
-	}
-	.err,
-	.warnline,
-	.pauseline,
-	.runline {
-		grid-column: 1 / -1;
-		margin: 0;
-		font-size: 12px;
-	}
-	.err {
-		color: var(--danger);
-	}
-	.warnline {
-		color: var(--lvl);
-		font-weight: 600;
-	}
-	.pauseline {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--text-2);
-	}
-	.taskline {
-		grid-column: 1 / -1;
-	}
-	.runline {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--accent);
-		font-weight: 600;
-	}
-	.runline .spin {
-		display: grid;
-		animation: spin 1s linear infinite;
-	}
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.runline .spin {
-			animation: none;
-		}
-	}
 	.hold {
 		border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
 	}
@@ -801,13 +689,6 @@
 		/* 16px evita el zoom de iOS al tocar el selector de cliente */
 		.menu select {
 			font-size: 16px;
-		}
-		.repo {
-			grid-template-columns: minmax(0, 1fr) auto;
-		}
-		.badge {
-			grid-column: 1 / -1;
-			justify-self: start;
 		}
 	}
 	.old-version {
