@@ -42,8 +42,8 @@
 			<span class="field-label">Contraseña</span>
 			<input class="input" type="password" autocomplete="current-password" bind:value={password} required />
 		</label>
-		{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
-		{#if info}<div class="notice notice-success"><CircleCheck size={16} /><p>{info}</p></div>{/if}
+		{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+		{#if info}<div class="notice notice-success" role="status"><CircleCheck size={16} /><p>{info}</p></div>{/if}
 		<button class="btn btn-primary big" disabled={busy}>
 			{#if busy}<span class="spin" style="display:grid"><LoaderCircle size={16} /></span>{/if}
 			Entrar

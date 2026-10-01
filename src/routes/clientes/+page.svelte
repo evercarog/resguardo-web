@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Building2, CircleAlert, Pencil, Plus, Trash2 } from '@lucide/svelte';
+	import { Building2, CircleAlert, FileText, Pencil, Plus, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { supabase } from '$lib/supabase';
@@ -14,6 +14,10 @@
 	onMount(loadAll);
 
 	const devicesOf = (c: Client) => db.devices.filter((d) => d.client_id === c.id).length;
+	const reposOf = (c: Client) => {
+		const ids = new Set(db.devices.filter((d) => d.client_id === c.id).map((d) => d.id));
+		return db.repos.filter((r) => ids.has(r.device_id)).length;
+	};
 
 	async function add(e: SubmitEvent) {
 		e.preventDefault();
@@ -55,10 +59,10 @@
 	</header>
 
 	<form class="card add" onsubmit={add}>
-		<input class="input" bind:value={name} placeholder="Nombre del nuevo cliente" maxlength="80" />
+		<input class="input" bind:value={name} placeholder="Nombre del nuevo cliente" aria-label="Nombre del nuevo cliente" maxlength="80" />
 		<button class="btn btn-primary" disabled={!name.trim()}><Plus size={16} /> Añadir</button>
 	</form>
-	{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+	{#if error || db.error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error || db.error}</p></div>{/if}
 
 	<ul class="list">
 		{#each db.clients as c, i (c.id)}
@@ -66,8 +70,13 @@
 				<span class="ic"><Building2 size={17} /></span>
 				<div class="info">
 					<strong>{c.name}</strong>
-					<span class="faint">{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'}</span>
+					<span class="faint"
+						>{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'} · {reposOf(c)} {reposOf(c) === 1 ? 'destino' : 'destinos'}</span
+					>
 				</div>
+				<a class="icon-btn" href="/informes?cliente={encodeURIComponent(c.id)}" title="Informe mensual" aria-label="Informe mensual de {c.name}"
+					><FileText size={15} /></a
+				>
 				<button class="icon-btn" title="Cambiar nombre" aria-label="Cambiar nombre de {c.name}" onclick={() => (dialog = { kind: 'rename', client: c })}
 					><Pencil size={15} /></button
 				>
@@ -76,7 +85,12 @@
 				>
 			</li>
 		{:else}
-			{#if db.loaded}<li class="faint none">Aún no hay clientes.</li>{/if}
+			{#if db.loaded}
+				<li class="faint none">Aún no hay clientes. Crea uno arriba y asígnale equipos desde Estado, en el menú «⋯» de cada equipo.</li>
+			{:else if !db.error}
+				{#each { length: 2 } as _}<li class="card skel-row" aria-hidden="true"><span class="skel"></span></li>{/each}
+				<li class="sr-only" role="status">Cargando…</li>
+			{/if}
 		{/each}
 	</ul>
 </div>
@@ -167,6 +181,14 @@
 	}
 	.none {
 		padding: 20px;
+		line-height: 1.5;
 		text-align: center;
+	}
+	.skel-row {
+		padding: 14px;
+	}
+	.skel-row .skel {
+		width: 45%;
+		height: 30px;
 	}
 </style>

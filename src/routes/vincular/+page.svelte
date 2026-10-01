@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import { CircleAlert, CircleCheck, Copy, KeyRound, LoaderCircle, Monitor, Plus, RefreshCw } from '@lucide/svelte';
-	import { db, loadAll } from '$lib/data.svelte';
+	import { CircleAlert, CircleCheck, KeyRound, LoaderCircle, RefreshCw, ShieldCheck } from '@lucide/svelte';
+	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { supabase } from '$lib/supabase';
 
 	let clientId = $state('');
@@ -50,7 +50,8 @@
 			expiresAt = new Date(data.expires_at).getTime();
 			watch();
 		} catch (e) {
-			error = e instanceof Error ? e.message : String((e as { message?: string }).message ?? e);
+			const msg = e instanceof Error ? e.message : String((e as { message?: string }).message ?? e);
+			error = /nombre del cliente/.test(msg) ? msg : friendlyError(`No se pudo generar el código: ${msg}`);
 		} finally {
 			busy = false;
 		}
@@ -102,11 +103,13 @@
 		{:else if code && remaining > 0}
 			<div class="code-view">
 				<p class="faint">Código de vinculación</p>
-				<button class="code mono" onclick={copy} title="Copiar">{pretty}</button>
-				<p class="faint small">
+				<button class="code mono" onclick={copy} title="Toca para copiarlo" aria-label="Código {pretty}. Toca para copiarlo">{pretty}</button>
+				<p class="faint small" aria-live="polite">
 					{#if copied}Copiado{:else}Caduca en {mmss(remaining)} · se usa una sola vez{/if}
 				</p>
-				<div class="waiting"><span class="spin" style="display:grid"><LoaderCircle size={15} /></span> Esperando al equipo…</div>
+				<div class="waiting" role="status">
+					<span class="spin" style="display:grid"><LoaderCircle size={15} aria-hidden="true" /></span> Esperando al equipo…
+				</div>
 				<ol class="steps">
 					<li>En el equipo, abre <strong>Resguardo como administrador</strong>.</li>
 					<li>Ve a <strong>Estado → Conectar con la web</strong>.</li>
@@ -131,7 +134,7 @@
 					</label>
 				{/if}
 				{#if code && remaining <= 0}<p class="faint">El código anterior caducó.</p>{/if}
-				{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+				{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 				<button class="btn btn-primary big" onclick={generate} disabled={busy}>
 					{#if busy}<span class="spin" style="display:grid"><LoaderCircle size={16} /></span>{:else}<KeyRound size={16} />{/if}
 					Generar código
@@ -141,8 +144,8 @@
 	</section>
 
 	<p class="faint note">
-		<Monitor size={14} /> El código dura 15 minutos y solo sirve una vez. Si alguien lo viera, no podría hacer nada con él pasado ese
-		tiempo.
+		<ShieldCheck size={14} aria-hidden="true" /> El código dura 15 minutos y solo sirve una vez. Escríbelo solo en Resguardo, en tu
+		equipo: nadie te lo pedirá por teléfono ni por correo.
 	</p>
 </div>
 

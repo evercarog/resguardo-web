@@ -29,7 +29,7 @@
 	async function prepare() {
 		const { data, error: err } = await supabase.auth.mfa.listFactors();
 		if (err) {
-			error = err.message;
+			error = 'No se pudo preparar la verificación. Recarga la página para intentarlo de nuevo.';
 			return;
 		}
 		const verified = data.totp.find((f) => f.status === 'verified');
@@ -76,7 +76,7 @@
 		const { error: err } = await supabase.auth.updateUser({ password: newPassword });
 		busy = false;
 		if (err) {
-			error = err.message;
+			error = 'No se pudo guardar la contraseña. Prueba con otra o vuelve a pedir el enlace.';
 			return;
 		}
 		history.replaceState(null, '', '/mfa');
@@ -106,16 +106,20 @@
 		<div class="center"><span class="spin" style="display:grid"><LoaderCircle size={22} /></span></div>
 	{:else if mode === 'newpass'}
 		<form onsubmit={savePassword}>
-			<input class="input" type="password" autocomplete="new-password" bind:value={newPassword} placeholder="Al menos 12 caracteres" required />
-			{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+			<label class="field">
+				<span class="field-label">Contraseña nueva</span>
+				<input class="input" type="password" autocomplete="new-password" bind:value={newPassword} minlength="12" required />
+				<span class="field-hint">Al menos 12 caracteres. Mejor una frase larga que no uses en otro sitio.</span>
+			</label>
+			{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 			<button class="btn btn-primary big" disabled={busy}>Guardar contraseña</button>
 		</form>
 	{:else}
 		{#if mode === 'enroll'}
 			<div class="qr"><img src={qr} alt="Código QR para la app de autenticación" /></div>
 			<details class="manual">
-				<summary>¿No puedes escanearlo?</summary>
-				<p class="faint">Escribe esta clave en tu app:</p>
+				<summary>¿No puedes escanearlo? Escribe la clave a mano</summary>
+				<p class="faint">Escribe esta clave en tu app. No la compartas con nadie: quien la tenga puede generar tus códigos.</p>
 				<code class="selectable">{secret}</code>
 			</details>
 		{/if}
@@ -126,17 +130,18 @@
 				autocomplete="one-time-code"
 				maxlength="7"
 				placeholder="000000"
+				aria-label="Código de 6 dígitos"
 				bind:value={code}
 				required
 			/>
-			{#if error}<div class="notice notice-danger"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+			{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
 			<button class="btn btn-primary big" disabled={busy || code.replace(/\s/g, '').length < 6}>
 				{#if busy}<span class="spin" style="display:grid"><LoaderCircle size={16} /></span>{:else}<ShieldCheck size={16} />{/if}
 				{mode === 'enroll' ? 'Activar y entrar' : 'Verificar'}
 			</button>
 		</form>
 	{/if}
-	<button class="link" onclick={leave}><LogOut size={13} /> Salir</button>
+	<button class="link" onclick={leave}><LogOut size={13} aria-hidden="true" /> Cerrar sesión</button>
 </AuthCard>
 
 <style>
