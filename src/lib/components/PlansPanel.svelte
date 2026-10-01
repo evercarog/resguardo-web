@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { CalendarClock, Hand } from '@lucide/svelte';
 	import RunResult from '$lib/components/RunResult.svelte';
 	import { planScheduleLabel } from '$lib/status';
@@ -6,6 +7,15 @@
 
 	// Planes de copia del repositorio, tal como los informa el equipo.
 	let { plans, now }: { plans: PlanInfo[]; now: number } = $props();
+
+	/** Copia señalada desde Estado (#copia-<id>): se lleva a la vista y se resalta. */
+	let marked = $state('');
+	onMount(() => {
+		const id = decodeURIComponent(location.hash.replace(/^#copia-/, ''));
+		if (!location.hash.startsWith('#copia-') || !plans.some((p) => p.id === id)) return;
+		marked = id;
+		requestAnimationFrame(() => document.getElementById(`copia-${id}`)?.scrollIntoView({ block: 'center' }));
+	});
 </script>
 
 {#if plans.length}
@@ -13,7 +23,7 @@
 		<h2>Copias que se guardan aquí</h2>
 		<div class="rows">
 			{#each plans as p (p.id)}
-				<div class="row" class:off={!p.schedule} id="copia-{p.id}">
+				<div class="row" class:off={!p.schedule} class:marked={marked === p.id} id="copia-{p.id}">
 					<span class="ic">
 						{#if p.schedule}<CalendarClock size={16} />{:else}<Hand size={16} />{/if}
 					</span>
@@ -23,7 +33,7 @@
 							{#each p.tags ?? [] as t}<span class="tag">{t}</span>{/each}
 						</div>
 						<span class="faint when"
-							>{p.schedule ? planScheduleLabel(p.schedule) : 'Solo a mano'}{#if p.skip_unchanged} · Solo guarda si hay cambios{/if}</span
+							>{p.schedule ? planScheduleLabel(p.schedule) : 'Solo a mano'}{#if p.skip_unchanged}{' '}· Solo guarda si hay cambios{/if}</span
 						>
 					</div>
 					<div class="state">
@@ -60,7 +70,7 @@
 		border-top: 1px solid var(--border);
 	}
 	/* Al llegar desde «Copias» en Estado (#copia-…), se resalta. */
-	.row:target {
+	.row.marked {
 		margin: 0 -10px;
 		padding-inline: 10px;
 		border-radius: var(--radius);

@@ -177,9 +177,10 @@
 		coverage: all.length ? Math.round(all.reduce((n, r) => n + r.coverage, 0) / all.length) : 0
 	});
 	const verdict = $derived(
-		totals.failed === 0 && all.every((r) => r.status.level === 'ok' || r.status.level === 'empty' || r.status.level === 'paused')
+		totals.failed === 0 &&
+			all.every((r) => !r.repo.offsite_hold && (r.status.level === 'ok' || r.status.level === 'empty' || r.status.level === 'paused'))
 			? { kind: 'ok', text: 'Todas las copias funcionan con normalidad.' }
-			: all.some((r) => r.status.level === 'failed' || r.status.level === 'overdue')
+			: all.some((r) => r.status.level === 'failed' || r.status.level === 'overdue' || r.repo.offsite_hold)
 				? { kind: 'bad', text: 'Hay copias que necesitan atención.' }
 				: { kind: 'warn', text: 'Hubo incidencias puntuales durante el mes.' }
 	);
@@ -280,7 +281,7 @@
 										<tr class="errrow"><td colspan="8">Último error: {r.lastError}</td></tr>
 									{/if}
 									{#if r.status.pause.active}
-										<tr class="noterow"><td colspan="8">Copias automáticas en pausa {pauseUntilLabel(r.status.pause.until)}{#if r.status.pause.since} (desde el {formatDate(r.status.pause.since)}){/if}.</td></tr>
+										<tr class="noterow"><td colspan="8">Copias automáticas en pausa {pauseUntilLabel(r.status.pause.until)}{#if r.status.pause.since}{' '}(desde el {formatDate(r.status.pause.since)}){/if}.</td></tr>
 									{/if}
 								{/each}
 							</tbody>

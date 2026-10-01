@@ -94,10 +94,10 @@
 		<div class="text">
 			{#if shared.ps === 'on'}
 				<strong>Avisos activados en este dispositivo</strong>
-				<span class="faint">Te avisamos si una copia falla, se atrasa o un equipo deja de conectarse, y cuando se recupera.</span>
+				<span class="faint">Te avisamos si una copia falla o se atrasa, si un equipo deja de conectarse o si hay un cambio inusual, y cuando se recupera.</span>
 			{:else if shared.ps === 'off'}
 				<strong>Recibe avisos en este {device}</strong>
-				<span class="faint">Cuando una copia falle, se atrase o un equipo deje de conectarse.</span>
+				<span class="faint">Cuando una copia falle o se atrase, un equipo deje de conectarse o haya un cambio inusual.</span>
 			{:else if shared.ps === 'denied'}
 				<strong>Las notificaciones están bloqueadas</strong>
 				<span class="faint">

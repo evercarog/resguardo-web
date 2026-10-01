@@ -126,8 +126,7 @@
 			<div>
 				<h1>{repo.name}</h1>
 				<p class="faint">
-					<Monitor size={13} />
-					{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
+					<span class="devname"><Monitor size={13} aria-hidden="true" />{device?.name ?? 'Equipo'}</span> · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
 				</p>
 			</div>
 			{#if status}<StatusChip level={chipLevel(repo, status.level)} size="md" />{/if}
@@ -300,12 +299,13 @@
 		font-weight: 700;
 	}
 	.head p {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-		flex-wrap: wrap;
 		margin: 3px 0 0;
 		font-size: 13px;
+	}
+	.devname {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 	}
 	.hold {
 		border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
