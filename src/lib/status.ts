@@ -18,6 +18,10 @@ export const LEVEL_LABEL: Record<Level, string> = {
 	paused: 'En pausa'
 };
 
+/** Nivel que se muestra en el chip: el del destino, o «cambio inusual» si la subida está frenada. */
+export type ChipLevel = Level | 'held';
+export const chipLevel = (repo: Repo, level: Level): ChipLevel => (repo.offsite_hold ? 'held' : level);
+
 export const LEVEL_ORDER: Record<Level, number> = { failed: 0, overdue: 1, late: 2, empty: 3, paused: 4, ok: 5 };
 
 /** Horas entre copias esperadas, según su programación. */

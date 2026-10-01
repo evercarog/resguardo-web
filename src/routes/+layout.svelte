@@ -68,6 +68,7 @@
 	<div class="boot"><Logo size={48} /></div>
 {:else if inside}
 	<div class="shell">
+		<a class="skip" href="#contenido">Saltar al contenido</a>
 		<header class="top">
 			<a class="brand" href="/"><Logo size={28} /><span>Resguardo</span></a>
 			<nav class="nav-top" aria-label="Principal">
@@ -83,7 +84,7 @@
 		{#if offline}
 			<div class="offline" role="status"><WifiOff size={13} /> Sin conexión. Mostraremos el estado en cuanto vuelva la red.</div>
 		{/if}
-		<main>{@render children()}</main>
+		<main id="contenido" tabindex="-1">{@render children()}</main>
 		<!-- En el celular, navegación abajo, al alcance del pulgar -->
 		<nav class="nav-bottom" aria-label="Principal">
 			{#each NAV as n}
@@ -201,6 +202,27 @@
 	}
 	.offline :global(svg) {
 		flex: none;
+	}
+	/* Enlace para teclado: aparece al tabular y lleva directo al contenido. */
+	.skip {
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		z-index: 20;
+		padding: 8px 12px;
+		font-weight: 600;
+		color: var(--accent-contrast);
+		background: var(--accent);
+		border-radius: var(--radius-sm);
+		transform: translateY(-200%);
+	}
+	.skip:focus {
+		transform: none;
+	}
+	main:focus,
+	main:focus-visible {
+		outline: none;
+		box-shadow: none;
 	}
 	main {
 		flex: 1;

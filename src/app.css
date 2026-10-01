@@ -406,6 +406,72 @@ textarea.input {
   color: var(--text);
 }
 
+/* ---------- Estados (destinos, copias, verificaciones) ----------
+ * `.lvl-*` define --lvl (el color del estado) para bordes, iconos y chips.
+ * El color nunca va solo: siempre con icono y texto (StatusChip). */
+
+.lvl-ok {
+  --lvl: var(--success);
+}
+.lvl-late {
+  --lvl: var(--warn);
+}
+.lvl-overdue,
+.lvl-failed,
+.lvl-held {
+  --lvl: var(--danger);
+}
+.lvl-paused,
+.lvl-empty {
+  --lvl: var(--text-3);
+}
+
+.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 22px;
+  white-space: nowrap;
+  border-radius: 999px;
+  color: var(--lvl, var(--text-2));
+  background: color-mix(in srgb, var(--lvl, var(--text-3)) 13%, transparent);
+}
+.chip svg {
+  flex: none;
+}
+/* Neutros: el texto un tono más oscuro para que se lea bien. */
+.chip.lvl-paused,
+.chip.lvl-empty {
+  color: var(--text-2);
+}
+
+/* Título de sección pequeño (en mayúsculas), dentro de tarjetas. */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- Barras de desplazamiento ---------- */
 
 ::-webkit-scrollbar {
