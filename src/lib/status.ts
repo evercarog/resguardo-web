@@ -456,3 +456,16 @@ const KINDS: Record<string, string> = {
 	other: 'Otro'
 };
 export const kindLabel = (k: string) => KINDS[k] ?? k;
+
+/**
+ * Destino (el lugar) de un repositorio, para agruparlos: el que informa el
+ * equipo o, en versiones antiguas, el propio repositorio (tipo y servidor).
+ */
+export function placeOf(repo: Repo): { key: string; name: string; kind: string } {
+	if (repo.place) return { key: `p:${repo.place.id}`, name: repo.place.name, kind: repo.place.kind };
+	return { key: `r:${repo.repo_id}`, name: `${kindLabel(repo.kind)}${repo.host ? ` · ${repo.host}` : ''}`, kind: repo.kind };
+}
+
+/** Qué es un destino y qué es un repositorio (la primera vez que aparece). */
+export const REPO_TIP =
+	'Un destino es el lugar donde se guardan las copias: un bucket en la nube, un servidor o un disco. Dentro hay uno o varios repositorios: cada uno está cifrado con su propia contraseña y guarda las versiones de sus copias.';

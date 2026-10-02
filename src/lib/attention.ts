@@ -46,7 +46,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 			rank: 5,
 			title: `${d.name} no se conecta`,
 			detail: d.last_seen_at
-				? `Último contacto ${formatRelative(d.last_seen_at, now)}${n ? ` · ${n} ${n === 1 ? 'destino' : 'destinos'} sin noticias` : ''}. Comprueba que el equipo esté encendido y con Resguardo abierto.`
+				? `Último contacto ${formatRelative(d.last_seen_at, now)}${n ? ` · ${n} ${n === 1 ? 'repositorio' : 'repositorios'} sin noticias` : ''}. Comprueba que el equipo esté encendido y con Resguardo abierto.`
 				: 'Todavía no ha enviado su estado.',
 			where: whereOf(d).split(' · ')[1],
 			href: `/#equipo-${d.id}`,
@@ -96,7 +96,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				detail: `Sin copias desde hace ${elapsedLabel(st.since)}: se esperaba una cada ${elapsedLabel(st.expected)}.`,
 				where,
 				href,
-				action: 'Ver destino'
+				action: 'Ver repositorio'
 			});
 		} else if (online && st.level === 'late' && st.since !== null) {
 			out.push({
@@ -107,7 +107,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				detail: `${elapsedLabel(st.since - st.expected)} de retraso.`,
 				where,
 				href,
-				action: 'Ver destino'
+				action: 'Ver repositorio'
 			});
 		}
 		if (r.maintenance?.restore_test && r.restore_test_run?.result === 'error') {

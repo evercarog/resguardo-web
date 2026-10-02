@@ -3,6 +3,7 @@
 	import { CircleAlert, Monitor, MoreHorizontal, Plus } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
+	import PlaceIcon from '$lib/components/PlaceIcon.svelte';
 	import RepoCard from '$lib/components/RepoCard.svelte';
 	import SummaryHero from '$lib/components/SummaryHero.svelte';
 	import { urgentItems } from '$lib/attention';
@@ -14,6 +15,7 @@
 		dayStateLabel,
 		deviceOnline,
 		lastCheck,
+		placeOf,
 		repoStatus,
 		runningSince,
 		taskRunning,
@@ -143,14 +145,19 @@
 		const nr = liveRepos.length;
 		const bytes = liveRepos.reduce((n, r) => n + (r.last_total_bytes ?? 0), 0);
 		const last = Math.max(0, ...liveRepos.map((r) => lastCheck(r).at ?? 0));
-		const parts = [`${nd} ${nd === 1 ? 'equipo' : 'equipos'}`, `${nr} ${nr === 1 ? 'destino' : 'destinos'}`];
+		const np = new Set(liveRepos.map((r) => `${r.device_id}|${placeOf(r).key}`)).size;
+		const parts = [
+			`${nd} ${nd === 1 ? 'equipo' : 'equipos'}`,
+			`${np} ${np === 1 ? 'destino' : 'destinos'}`,
+			`${nr} ${nr === 1 ? 'repositorio' : 'repositorios'}`
+		];
 		if (bytes) parts.push(`${formatBytes(bytes)} protegidos`);
 		if (last) parts.push(`última copia ${formatRelative(last, now)}`);
 		return parts.join(' · ');
 	});
 	const runningText = $derived.by(() => {
 		const n = liveRepos.filter((r) => runningSince(r, now) || taskRunning(r, now)).length;
-		return n ? `En marcha ahora en ${n} ${n === 1 ? 'destino' : 'destinos'}` : '';
+		return n ? `En marcha ahora en ${n} ${n === 1 ? 'repositorio' : 'repositorios'}` : '';
 	});
 	const updated = $derived(db.updatedAt ? `Actualizado ${formatRelative(db.updatedAt, now)}` : '');
 
@@ -172,6 +179,18 @@
 		// Clientes con el equipo en peor estado, primero; a igualdad, por nombre ("Sin cliente" al final).
 		return out.sort((a, b) => a.worst - b.worst || (a.client?.name ?? '~').localeCompare(b.client?.name ?? '~'));
 	});
+
+	/** Repositorios de un equipo agrupados por destino, en el orden de gravedad que ya traen. */
+	function placesOf(rows: typeof repoRows) {
+		const out: { key: string; name: string; kind: string; rows: typeof repoRows }[] = [];
+		for (const row of rows) {
+			const p = placeOf(row.repo);
+			const g = out.find((x) => x.key === p.key);
+			if (g) g.rows.push(row);
+			else out.push({ ...p, rows: [row] });
+		}
+		return out;
+	}
 
 	/** Compara versiones "0.5.1" (true si a es anterior a b). */
 	function versionLess(a: string, b: string) {
@@ -296,11 +315,21 @@
 						{#if repos.length === 0}
 							<p class="none">Este equipo aún no tiene copias automáticas programadas.</p>
 						{:else}
-							<div class="dests">
-								{#each repos as { repo, status } (repo.repo_id)}
-									<RepoCard {repo} {status} device={d} days={daysOf(d.id, repo.repo_id)} {now} />
-								{/each}
-							</div>
+							<!-- Destinos (el lugar) del equipo, con sus repositorios -->
+							{#each placesOf(repos) as pl (pl.key)}
+								<div class="place">
+									<h4 class="place-head">
+										<span class="place-ic"><PlaceIcon kind={pl.kind} size={14} /></span>
+										<span class="place-name">{pl.name}</span>
+										<span class="cnt">· {pl.rows.length} {pl.rows.length === 1 ? 'repositorio' : 'repositorios'}</span>
+									</h4>
+									<div class="dests">
+										{#each pl.rows as { repo, status } (repo.repo_id)}
+											<RepoCard {repo} {status} device={d} days={daysOf(d.id, repo.repo_id)} {now} />
+										{/each}
+									</div>
+								</div>
+							{/each}
 						{/if}
 					</div>
 				{/each}
@@ -408,6 +437,39 @@
 		align-items: center;
 		gap: 6px;
 		color: var(--text-2);
+	}
+	.place {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+	.place + .place {
+		margin-top: var(--sp-2);
+	}
+	.place-head {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		font-weight: 500;
+		color: var(--text-2);
+	}
+	.place-ic {
+		display: grid;
+		flex: none;
+		color: var(--text-3);
+	}
+	.place-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.place-head .cnt {
+		flex: none;
+		font-weight: 400;
+		color: var(--text-3);
 	}
 	.dests {
 		display: grid;

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { ArrowRight, CircleAlert, LoaderCircle, RefreshCw, ShieldCheck, TriangleAlert } from '@lucide/svelte';
 	import type { UrgentItem } from '$lib/attention';
+	import InfoTip from '$lib/components/InfoTip.svelte';
+	import { REPO_TIP } from '$lib/status';
 
 	// Resumen grande del inicio (diseño común): un titular, una línea de
 	// resumen y lo urgente, ordenado, cada punto con su acción.
@@ -37,7 +39,7 @@
 		</span>
 		<div class="text">
 			<h1 id="hero-title">{headline}</h1>
-			<p class="sub num">{summary}</p>
+			<p class="sub num">{summary} <InfoTip text={REPO_TIP} label="Qué son los destinos y los repositorios" /></p>
 			{#if running}
 				<p class="running"><span class="spin"><LoaderCircle size={14} aria-hidden="true" /></span>{running}</p>
 			{/if}

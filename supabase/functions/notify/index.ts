@@ -215,7 +215,7 @@ async function weeklySummary(
 			body:
 				`${count ?? 0} copias en los últimos 7 días` +
 				(unchanged ? ` (y ${unchanged} ${unchanged === 1 ? 'revisión' : 'revisiones'} sin cambios)` : '') +
-				` · destinos: ${parts.join(', ')}.` +
+				` · repositorios: ${parts.join(', ')}.` +
 				redText,
 			url: '/',
 			tag: 'resumen-semanal'

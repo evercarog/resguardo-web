@@ -13,7 +13,6 @@
 		chipLevel,
 		deviceOnline,
 		elapsedLabel,
-		kindLabel,
 		nextExpected,
 		pauseUntilLabel,
 		protectionSummary,
@@ -82,7 +81,6 @@
 	<header class="top">
 		<div class="title">
 			<h3><a {href}>{repo.name}</a></h3>
-			<p class="meta">{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''}</p>
 		</div>
 		<StatusChip {level} />
 	</header>
@@ -199,13 +197,6 @@
 	}
 	h3 a {
 		color: var(--text-1);
-	}
-	.meta {
-		margin-top: 2px;
-		font-size: var(--fs-sm);
-		line-height: var(--lh-sm);
-		color: var(--text-3);
-		overflow-wrap: anywhere;
 	}
 	.alert {
 		display: flex;

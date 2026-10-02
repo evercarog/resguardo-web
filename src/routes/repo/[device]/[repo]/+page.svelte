@@ -4,7 +4,9 @@
 	import { ArrowLeft, CircleAlert, CirclePause, CloudOff, History, LoaderCircle, X } from '@lucide/svelte';
 	import ActivityChart from '$lib/components/ActivityChart.svelte';
 	import DaySquares from '$lib/components/DaySquares.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import MaintenancePanel from '$lib/components/MaintenancePanel.svelte';
+	import PlaceIcon from '$lib/components/PlaceIcon.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
 	import ProtectionPanel from '$lib/components/ProtectionPanel.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
@@ -14,11 +16,12 @@
 	import { dayKey, formatBytes, formatDate, formatDay, formatDayShort, formatDuration, formatNumber, formatTime, fromDayKey, startOfDay } from '$lib/format';
 	import {
 		HOLD_ADVICE,
+		REPO_TIP,
+		placeOf,
 		chipLevel,
 		dayState,
 		dayStateLabel,
 		holdSummary,
-		kindLabel,
 		pauseUntilLabel,
 		repoScheduleLabel,
 		repoStatus,
@@ -115,7 +118,7 @@
 	});
 </script>
 
-<svelte:head><title>{repo?.name ?? 'Destino'} · Resguardo</title></svelte:head>
+<svelte:head><title>{repo ? `${placeOf(repo).name} › ${repo.name}` : 'Repositorio'} · Resguardo</title></svelte:head>
 
 <div class="page">
 	<a class="back" href="/"><ArrowLeft size={14} aria-hidden="true" /> Estado</a>
@@ -138,15 +141,19 @@
 	{:else if !repo}
 		<div class="empty-state">
 			<History size={32} strokeWidth={1.5} />
-			<p>Este destino ya no existe o el equipo todavía no lo ha informado.</p>
+			<p>Este repositorio ya no existe o el equipo todavía no lo ha informado.</p>
 			<a class="btn btn-primary" href="/">Volver al estado</a>
 		</div>
 	{:else}
 		<header class="page-head">
 			<div class="htext">
-				<h1 class="page-title">{repo.name}</h1>
+				<h1 class="page-title">
+					<span class="crumb"><PlaceIcon kind={placeOf(repo).kind} size={16} /> {placeOf(repo).name} <span aria-hidden="true">›</span></span>
+					{repo.name}
+				</h1>
 				<p class="page-sub">
-					{device?.name ?? 'Equipo'} · {kindLabel(repo.kind)}{repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
+					Repositorio en {device?.name ?? 'el equipo'}{repo.place && repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
+					<InfoTip text={REPO_TIP} label="Qué son los destinos y los repositorios" />
 				</p>
 			</div>
 			{#if status}<StatusChip level={chipLevel(repo, status.level)} />{/if}
@@ -196,7 +203,7 @@
 			<div class="stat">
 				<span class="label">Versiones</span>
 				<strong class="value num">{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</strong>
-				<span class="sub">guardadas en este destino</span>
+				<span class="sub">guardadas en este repositorio</span>
 			</div>
 			<div class="stat">
 				<span class="label">Tamaño protegido</span>
@@ -324,6 +331,15 @@
 	}
 	.htext h1 {
 		overflow-wrap: anywhere;
+	}
+	/* «Destino ›» antes del nombre del repositorio. */
+	.crumb {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-right: 4px;
+		font-weight: 500;
+		color: var(--text-3);
 	}
 	.hold > div {
 		display: flex;

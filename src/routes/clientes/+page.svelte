@@ -73,7 +73,7 @@
 					<span class="ic" aria-hidden="true"><Building2 size={16} /></span>
 					<div class="info">
 						<strong>{c.name}</strong>
-						<span class="faint num">{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'} · {reposOf(c)} {reposOf(c) === 1 ? 'destino' : 'destinos'}</span>
+						<span class="faint num">{devicesOf(c)} {devicesOf(c) === 1 ? 'equipo' : 'equipos'} · {reposOf(c)} {reposOf(c) === 1 ? 'repositorio' : 'repositorios'}</span>
 					</div>
 					<div class="acts">
 						<a class="icon-btn" href="/informes?cliente={encodeURIComponent(c.id)}" title="Informe mensual" aria-label="Informe mensual de {c.name}"

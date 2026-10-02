@@ -19,6 +19,13 @@ export interface Device {
 	remote_backup_enabled?: boolean;
 }
 
+/** Destino: el lugar donde se guardan los repositorios (un bucket, un servidor, un disco). El id es de cada equipo. */
+export interface Place {
+	id: string;
+	name: string;
+	kind: 's3' | 'b2' | 'azure' | 'gs' | 'rest' | 'sftp' | 'local' | 'rclone' | 'other';
+}
+
 /** Petición de una copia a distancia («Copiar ahora» de un plan). */
 export interface DeviceCommand {
 	id: string;
@@ -79,6 +86,8 @@ export interface Repo {
 	kit_saved_at?: string | null;
 	/** Salud de la protección, tal como la calcula la app de escritorio. */
 	protection?: Protection | null;
+	/** Destino (el lugar) donde está este repositorio; sin el dato, el repositorio es su propio destino. */
+	place?: Place | null;
 	/** Verificación o subida en curso. */
 	task_running: TaskRunning | null;
 	/** Planes de copia (versiones con planes; en ese caso `schedule` va vacío). */

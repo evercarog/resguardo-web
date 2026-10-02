@@ -6,7 +6,7 @@
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import { db, friendlyError, loadAll } from '$lib/data.svelte';
 	import { bogota, bogotaTime, dayKey, formatBytes, formatDate, formatDuration, formatMonth } from '$lib/format';
-	import { chipLevel, kindLabel, pauseUntilLabel, repoScheduleLabel, repoStatus } from '$lib/status';
+	import { chipLevel, placeOf, pauseUntilLabel, repoScheduleLabel, repoStatus } from '$lib/status';
 	import { supabase } from '$lib/supabase';
 	import type { Device, Repo } from '$lib/types';
 
@@ -235,7 +235,7 @@
 
 			<dl class="kpis">
 				<div><dt>Equipos</dt><dd>{totals.devices}</dd></div>
-				<div><dt>Destinos</dt><dd>{totals.repos}</dd></div>
+				<div><dt>Repositorios</dt><dd>{totals.repos}</dd></div>
 				<div><dt>Versiones guardadas en el mes</dt><dd>{totals.versions.toLocaleString('es')}</dd></div>
 				<div><dt>Días con copia (media)</dt><dd>{totals.coverage} %</dd></div>
 				<div><dt>Copias fallidas</dt><dd class:bad={totals.failed > 0}>{totals.failed}</dd></div>
@@ -246,12 +246,12 @@
 				<section class="dev">
 					<h3>{device.name}<span class="faint">{device.os ?? ''}</span></h3>
 					{#if !repos.length}
-						<p class="faint">Sin destinos informados.</p>
+						<p class="faint">Sin repositorios informados.</p>
 					{:else}
 						<table>
 							<thead>
 								<tr>
-									<th>Destino</th>
+									<th>Repositorio</th>
 									<th>Programación</th>
 									<th class="num">Versiones</th>
 									<th class="num">Días con copia</th>
@@ -265,7 +265,7 @@
 								{#each repos as r (r.repo.repo_id)}
 									<tr>
 										<td>
-											<strong>{r.repo.name}</strong><span class="faint small">{kindLabel(r.repo.kind)}</span>
+											<strong>{r.repo.name}</strong><span class="faint small">{placeOf(r.repo).name}</span>
 											{#if r.repo.protection}<span class="faint small sub">Protección {r.repo.protection.score} de {r.repo.protection.total}</span>{/if}
 											{#if r.repo.maintenance?.restore_test}
 												<span class="faint small sub"
@@ -301,7 +301,7 @@
 			{/each}
 
 			<footer class="rfoot faint">
-				Datos informados por Resguardo en cada equipo. Las versiones del mes pueden estar incompletas si el destino guarda más de 500
+				Datos informados por Resguardo en cada equipo. Las versiones del mes pueden estar incompletas si el repositorio guarda más de 500
 				(se informan las más recientes). Las versiones están cifradas con restic; este informe no contiene nombres de archivos.
 			</footer>
 		{/if}

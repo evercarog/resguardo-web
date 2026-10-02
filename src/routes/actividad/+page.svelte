@@ -483,7 +483,7 @@
 			<p class="faint note">
 				«Versión guardada» son versiones que no corresponden a ninguna copia automática: hechas a mano o por otra herramienta. De la
 				verificación, la subida a la nube, la verificación de la nube y la prueba de restauración se muestra solo el último resultado de cada
-				destino.
+				repositorio.
 			</p>
 		{/if}
 	{/if}
