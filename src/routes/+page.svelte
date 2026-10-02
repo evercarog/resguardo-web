@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { CircleAlert, Monitor, MoreHorizontal, Plus, Share2 } from '@lucide/svelte';
+	import { CircleAlert, Monitor, MoreHorizontal, Plus, Server, Share2 } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
 	import PlaceIcon from '$lib/components/PlaceIcon.svelte';
 	import RepoCard from '$lib/components/RepoCard.svelte';
+	import ServerPanel from '$lib/components/ServerPanel.svelte';
 	import SummaryHero from '$lib/components/SummaryHero.svelte';
 	import { urgentItems } from '$lib/attention';
 	import { db, friendlyError, loadAll, subscribe } from '$lib/data.svelte';
@@ -285,6 +286,7 @@
 										{online ? 'Conectado' : d.last_seen_at ? `Sin conexión · ${formatRelative(d.last_seen_at, now)}` : 'Nunca conectado'}
 									</span>
 									<span class="faint">{d.os ?? ''}{d.app_version ? ` · v${d.app_version}` : ''}</span>
+									{#if d.server}<span class="badge badge-sm"><Server size={12} aria-hidden="true" />Servidor de copias</span>{/if}
 									{#if d.app_version && newest && versionLess(d.app_version, newest)}
 										<span class="badge badge-sm tone-warn" title="La versión más reciente en tus equipos es la {newest}">Actualizar a {newest}</span>
 									{/if}
@@ -315,7 +317,11 @@
 							</div>
 						</header>
 
-						{#if repos.length === 0}
+						{#if d.server}<ServerPanel server={d.server} />{/if}
+
+						{#if repos.length === 0 && d.server}
+							<!-- Un servidor de copias puede no tener repositorios propios. -->
+						{:else if repos.length === 0}
 							<p class="none">Este equipo aún no tiene copias automáticas programadas.</p>
 						{:else}
 							<!-- Destinos (el lugar) del equipo, con sus repositorios -->

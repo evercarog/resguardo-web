@@ -17,6 +17,19 @@ export interface Device {
 	revoked_at: string | null;
 	/** El equipo permite «Copiar ahora» desde la web u otro equipo (lo activa el propio equipo). */
 	remote_backup_enabled?: boolean;
+	/** Servidor de copias de Resguardo, solo mientras está activo (nunca credenciales). */
+	server?: BackupServer | null;
+}
+
+/** Servidor de copias (rest-server) que publica un equipo para los demás. */
+export interface BackupServer {
+	port: number;
+	lan_addresses: string[];
+	public_hint: string | null;
+	/** Huella SHA-256 del certificado TLS, 64 hexadecimales en mayúsculas. */
+	tls_sha256: string | null;
+	local_subnet_only: boolean;
+	users: { user: string; device_id: string | null; repos: string[] }[];
 }
 
 /** Destino: el lugar donde se guardan los repositorios (un bucket, un servidor, un disco). El id es de cada equipo. */

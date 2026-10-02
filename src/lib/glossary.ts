@@ -203,6 +203,12 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 		text: 'Pide al equipo que haga ya una copia que tiene configurada. Solo eso: desde aquí no se puede restaurar, borrar ni cambiar nada. Cada equipo tiene que permitirlo.',
 		todo: `Para usarlo, activa «Copias a distancia» ${EN_EQUIPO}.`
 	},
+	'servidor-copias': {
+		group: 'conceptos',
+		title: 'Servidor de copias',
+		text: 'Un equipo tuyo que guarda las copias de tus otros equipos, como un servidor REST de solo añadir: cada equipo solo ve su carpeta y no puede borrar nada. Va cifrado (TLS) y cada equipo entra con su propia clave, que se entrega cifrada.',
+		todo: `Se activa en Resguardo, en ese equipo (Ajustes › Este equipo › «Servidor de copias»). Para usarlo desde otra sede hay que abrir un puerto en el router: Resguardo nunca lo abre solo.`
+	},
 	avisos: {
 		group: 'web',
 		title: 'Avisos',
