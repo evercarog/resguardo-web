@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { CircleAlert, CircleCheck, CircleDashed, KeyRound, TriangleAlert } from '@lucide/svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import ProtectionRing from '$lib/components/ProtectionRing.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import { protectionSummary } from '$lib/status';
@@ -53,7 +54,7 @@
 							/>{:else if i.state === 'bad'}<CircleAlert size={16} aria-hidden="true" />{:else}<CircleDashed size={16} aria-hidden="true" />{/if}
 					</span>
 					<span class="txt">
-						<strong>{i.label}<span class="sr-only">: {WORD[i.state]}</span></strong>
+						<strong>{i.label}<span class="sr-only">: {WORD[i.state]}</span> <InfoTip term="prot-{i.id}" /></strong>
 						{#if i.detail}<span class="faint">{i.detail}</span>{/if}
 					</span>
 				</li>

@@ -2,6 +2,7 @@
 // hacer. La alarma (tono «bad») solo para lo que de verdad es urgente; los
 // retrasos leves y lo que falta para estar protegido del todo son avisos.
 import { formatRelative } from '$lib/format';
+import { GLOSSARY } from '$lib/glossary';
 import { HOLD_ADVICE, deviceOnline, elapsedLabel, holdSummary, repoStatus } from '$lib/status';
 import type { Client, Device, Repo } from '$lib/types';
 
@@ -16,8 +17,8 @@ export interface UrgentItem {
 	where: string;
 	href: string;
 	action: string;
-	/** Qué hacer, cuando no es evidente (cambio inusual). */
-	advice?: string;
+	/** Qué hacer, en una frase. */
+	todo: string;
 }
 
 const repoHref = (r: Repo) => `/repo/${r.device_id}/${encodeURIComponent(r.repo_id)}`;
@@ -46,8 +47,9 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 			rank: 5,
 			title: `${d.name} no se conecta`,
 			detail: d.last_seen_at
-				? `Último contacto ${formatRelative(d.last_seen_at, now)}${n ? ` · ${n} ${n === 1 ? 'repositorio' : 'repositorios'} sin noticias` : ''}. Comprueba que el equipo esté encendido y con Resguardo abierto.`
+				? `Último contacto ${formatRelative(d.last_seen_at, now)}${n ? ` · ${n} ${n === 1 ? 'repositorio' : 'repositorios'} sin noticias` : ''}.`
 				: 'Todavía no ha enviado su estado.',
+			todo: 'Comprueba que el equipo esté encendido, con internet y con Resguardo abierto.',
 			where: whereOf(d).split(' · ')[1],
 			href: `/#equipo-${d.id}`,
 			action: 'Ver equipo'
@@ -70,7 +72,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 0,
 				title: `Cambio inusual en ${name}`,
 				detail: `${holdSummary(r.offsite_hold, now)} La subida a la nube está frenada.`,
-				advice: HOLD_ADVICE,
+				todo: HOLD_ADVICE,
 				where,
 				href,
 				action: 'Revisar'
@@ -83,6 +85,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 1,
 				title: `Falló la copia de ${name}`,
 				detail: r.last_run?.message || null,
+				todo: 'Arregla lo que dice el mensaje en Resguardo, en ese equipo, y vuelve a copiar (o pide «Copiar ahora» desde aquí).',
 				where,
 				href,
 				action: 'Ver qué pasó'
@@ -94,6 +97,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 6,
 				title: `${name} atrasada`,
 				detail: `Sin copias desde hace ${elapsedLabel(st.since)}: se esperaba una cada ${elapsedLabel(st.expected)}.`,
+				todo: GLOSSARY['estado-overdue'].todo!,
 				where,
 				href,
 				action: 'Ver repositorio'
@@ -105,6 +109,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 7,
 				title: `${name} con retraso`,
 				detail: `${elapsedLabel(st.since - st.expected)} de retraso.`,
+				todo: 'Si sigue así, comprueba que el equipo esté encendido o pide «Copiar ahora».',
 				where,
 				href,
 				action: 'Ver repositorio'
@@ -117,6 +122,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 2,
 				title: `Falló la prueba de restauración de ${name}`,
 				detail: r.restore_test_run.message || null,
+				todo: 'Mira qué archivo no salió bien en Resguardo, en ese equipo, y repite la prueba.',
 				where,
 				href,
 				action: 'Ver qué pasó'
@@ -129,6 +135,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 3,
 				title: `La verificación de ${name} encontró errores`,
 				detail: r.verify_run.message || null,
+				todo: 'Repite la verificación en Resguardo, en ese equipo. Si vuelve a fallar, haz una copia nueva cuanto antes.',
 				where,
 				href,
 				action: 'Ver qué pasó'
@@ -141,6 +148,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 4,
 				title: `Falló la subida a la nube de ${name}`,
 				detail: r.offsite_run.message || null,
+				todo: 'Revisa la conexión y las claves de la nube en Resguardo, en ese equipo.',
 				where,
 				href,
 				action: 'Ver qué pasó'
@@ -153,6 +161,7 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				rank: 4,
 				title: `Falló la verificación de la nube de ${name}`,
 				detail: r.offsite_verify_run.message || null,
+				todo: 'Repite la verificación de la nube en Resguardo, en ese equipo.',
 				where,
 				href,
 				action: 'Ver qué pasó'
@@ -167,7 +176,8 @@ export function urgentItems(repos: Repo[], devices: Device[], clients: Client[],
 				tone: 'warn',
 				rank: 8,
 				title: `${name}: ${short(i.detail, i.label)}`,
-				detail: i.detail && i.detail.includes(':') ? i.detail.slice(i.detail.indexOf(':') + 1).trim() : null,
+				detail: GLOSSARY[`prot-${i.id}`]?.text ?? (i.detail || null),
+				todo: GLOSSARY[`prot-${i.id}`]?.todo ?? 'Revísalo en Resguardo, en ese equipo.',
 				where,
 				href: `${href}#proteccion`,
 				action: 'Ver cómo'

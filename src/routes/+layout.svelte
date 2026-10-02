@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { Activity, Building2, FileText, History, LogOut, Palette, Plus, UserRoundCog, WifiOff } from '@lucide/svelte';
+	import { Activity, BookOpen, Building2, FileText, History, LogOut, Palette, Plus, UserRoundCog, WifiOff } from '@lucide/svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import AppearanceDialog from '$lib/components/AppearanceDialog.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -77,6 +77,14 @@
 				{/each}
 			</nav>
 			<div class="actions">
+				<a
+					class="icon-btn"
+					class:on={path.startsWith('/ayuda')}
+					href="/ayuda"
+					title="Qué significa cada cosa"
+					aria-label="Qué significa cada cosa"
+					aria-current={path.startsWith('/ayuda') ? 'page' : undefined}><BookOpen size={16} /></a
+				>
 				<button class="icon-btn" title="Apariencia" aria-label="Apariencia" onclick={() => (showAppearance = true)}><Palette size={16} /></button>
 				<a
 					class="icon-btn"

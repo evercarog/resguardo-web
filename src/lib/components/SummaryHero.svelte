@@ -60,7 +60,7 @@
 					<div class="main">
 						<p class="t">{i.title}</p>
 						{#if i.detail}<p class="d">{i.detail}</p>{/if}
-						{#if i.advice}<p class="advice">{i.advice}</p>{/if}
+						<p class="todo"><span>Qué hacer:</span> {i.todo}</p>
 						<p class="w">{i.where}</p>
 					</div>
 					<a class="btn btn-sm act" href={i.href}>{i.action} <ArrowRight size={14} aria-hidden="true" /></a>
@@ -169,7 +169,7 @@
 		overflow-wrap: anywhere;
 	}
 	.d,
-	.advice,
+	.todo,
 	.w {
 		font-size: var(--fs-sm);
 		line-height: var(--lh-sm);
@@ -178,8 +178,12 @@
 	.d {
 		color: var(--text-2);
 	}
-	.advice {
+	.todo {
 		color: var(--text-2);
+	}
+	.todo span {
+		font-weight: 500;
+		color: var(--text-1);
 	}
 	.w {
 		color: var(--text-3);
