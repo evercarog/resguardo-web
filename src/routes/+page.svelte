@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { CircleAlert, Monitor, MoreHorizontal, Plus } from '@lucide/svelte';
+	import { CircleAlert, Monitor, MoreHorizontal, Plus, Share2 } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
 	import PlaceIcon from '$lib/components/PlaceIcon.svelte';
@@ -182,11 +182,14 @@
 
 	/** Repositorios de un equipo agrupados por destino, en el orden de gravedad que ya traen. */
 	function placesOf(rows: typeof repoRows) {
-		const out: { key: string; name: string; kind: string; rows: typeof repoRows }[] = [];
+		const out: { key: string; name: string; kind: string; shared: boolean; rows: typeof repoRows }[] = [];
 		for (const row of rows) {
 			const p = placeOf(row.repo);
 			const g = out.find((x) => x.key === p.key);
-			if (g) g.rows.push(row);
+			if (g) {
+				g.rows.push(row);
+				g.shared ||= p.shared;
+			}
 			else out.push({ ...p, rows: [row] });
 		}
 		return out;
@@ -321,6 +324,7 @@
 									<h4 class="place-head">
 										<span class="place-ic"><PlaceIcon kind={pl.kind} size={14} /></span>
 										<span class="place-name">{pl.name}</span>
+										{#if pl.shared}<a class="badge badge-sm shared" href="/cuenta/compartidos" title="Este equipo comparte el destino con tus otros equipos"><Share2 size={12} aria-hidden="true" />Compartido</a>{/if}
 										<span class="cnt">· {pl.rows.length} {pl.rows.length === 1 ? 'repositorio' : 'repositorios'}</span>
 									</h4>
 									<div class="dests">
@@ -465,6 +469,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.shared {
+		flex: none;
+		text-decoration: none;
 	}
 	.place-head .cnt {
 		flex: none;

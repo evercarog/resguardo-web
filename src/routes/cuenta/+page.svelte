@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { CircleAlert, CircleCheck, CircleQuestionMark, KeyRound, LoaderCircle, LogOut, Plus, ShieldCheck, Smartphone, Trash2 } from '@lucide/svelte';
+	import { CircleAlert, CircleCheck, CircleQuestionMark, KeyRound, LoaderCircle, LogOut, Plus, ShieldCheck, Smartphone, Trash2, Share2 } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import { friendlyError } from '$lib/data.svelte';
@@ -381,6 +381,16 @@
 					</button>
 				</div>
 			</form>
+		</section>
+
+		<!-- Destinos compartidos -->
+		<section class="card box" aria-labelledby="t-shr">
+			<h2 id="t-shr"><Share2 size={17} aria-hidden="true" /> Destinos compartidos</h2>
+			<p class="faint lead">
+				Los destinos que tus equipos comparten entre sí y tus peticiones: cuándo se entregan y quién las recibió. Si alguna no la hiciste
+				tú, cancélala desde ahí.
+			</p>
+			<div class="row start"><a class="btn" href="/cuenta/compartidos">Ver destinos compartidos</a></div>
 		</section>
 
 		<!-- Sesiones -->

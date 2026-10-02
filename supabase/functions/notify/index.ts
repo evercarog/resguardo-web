@@ -20,8 +20,10 @@ const CORS = {
 /**
  * Cuanto mayor, peor. Se notifica al empeorar y al volver a "ok".
  * "critical": subida a la nube frenada por un cambio inusual (posible ransomware).
+ * "notice": un hecho que se avisa una vez (petición o entrega de un destino
+ * compartido); al desaparecer de la lista se olvida sin avisar.
  */
-const SEVERITY: Record<string, number> = { ok: 0, late: 1, offline: 2, overdue: 2, failed: 3, critical: 4 };
+const SEVERITY: Record<string, number> = { ok: 0, notice: 1, late: 1, offline: 2, overdue: 2, failed: 3, critical: 4 };
 
 type Payload = { title: string; body: string; url: string; tag?: string };
 

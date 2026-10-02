@@ -157,6 +157,7 @@
 				<p class="page-sub">
 					Repositorio en {device?.name ?? 'el equipo'}{repo.place && repo.host ? ` · ${repo.host}` : ''} · {repoScheduleLabel(repo)}
 					<InfoTip text={REPO_TIP} label="Qué son los destinos y los repositorios" />
+					{#if repo.place?.shared}<a class="badge badge-sm" href="/cuenta/compartidos" title="Este equipo comparte el destino con tus otros equipos">Destino compartido</a>{/if}
 				</p>
 			</div>
 			{#if status}<StatusChip level={chipLevel(repo, status.level)} tip />{/if}

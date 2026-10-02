@@ -461,9 +461,9 @@ export const kindLabel = (k: string) => KINDS[k] ?? k;
  * Destino (el lugar) de un repositorio, para agruparlos: el que informa el
  * equipo o, en versiones antiguas, el propio repositorio (tipo y servidor).
  */
-export function placeOf(repo: Repo): { key: string; name: string; kind: string } {
-	if (repo.place) return { key: `p:${repo.place.id}`, name: repo.place.name, kind: repo.place.kind };
-	return { key: `r:${repo.repo_id}`, name: `${kindLabel(repo.kind)}${repo.host ? ` · ${repo.host}` : ''}`, kind: repo.kind };
+export function placeOf(repo: Repo): { key: string; name: string; kind: string; shared: boolean } {
+	if (repo.place) return { key: `p:${repo.place.id}`, name: repo.place.name, kind: repo.place.kind, shared: repo.place.shared === true };
+	return { key: `r:${repo.repo_id}`, name: `${kindLabel(repo.kind)}${repo.host ? ` · ${repo.host}` : ''}`, kind: repo.kind, shared: false };
 }
 
 /** Qué es un destino y qué es un repositorio (la primera vez que aparece). */

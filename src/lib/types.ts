@@ -24,6 +24,8 @@ export interface Place {
 	id: string;
 	name: string;
 	kind: 's3' | 'b2' | 'azure' | 'gs' | 'rest' | 'sftp' | 'local' | 'rclone' | 'other';
+	/** El equipo comparte este destino con tus otros equipos. */
+	shared?: boolean;
 }
 
 /** Petición de una copia a distancia («Copiar ahora» de un plan). */
