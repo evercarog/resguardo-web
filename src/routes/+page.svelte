@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { CircleAlert, Monitor, MoreHorizontal, Plus, Server, Share2 } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import PushCard from '$lib/components/PushCard.svelte';
 	import PlaceIcon from '$lib/components/PlaceIcon.svelte';
 	import RepoCard from '$lib/components/RepoCard.svelte';
@@ -216,6 +217,9 @@
 	);
 
 
+	/** Equipos que gestiona esta consola. */
+	const managedCount = (d: Device) => db.devices.filter((x) => x.managed_by === d.id).length;
+
 	async function moveDevice(d: Device, clientId: string) {
 		menu = null;
 		await supabase.from('devices').update({ client_id: clientId || null }).eq('id', d.id);
@@ -287,6 +291,21 @@
 									</span>
 									<span class="faint">{d.os ?? ''}{d.app_version ? ` · v${d.app_version}` : ''}</span>
 									{#if d.server}<span class="badge badge-sm"><Server size={12} aria-hidden="true" />Servidor de copias</span>{/if}
+									{#if managedCount(d) > 0}
+										<span class="badge badge-sm">Consola · {managedCount(d)} {managedCount(d) === 1 ? 'equipo gestionado' : 'equipos gestionados'}</span>
+									{/if}
+									{#if d.managed_by}
+										<span class="badge badge-sm tone-info"
+											>Gestionado por «{db.devices.find((x) => x.id === d.managed_by)?.name ?? 'otro equipo'}»<InfoTip term="equipo-gestionado" /></span
+										>
+										{#if d.managed?.service === 'stopped_by_admin'}
+											<span class="badge badge-sm tone-bad">Servicio detenido por un administrador</span>
+										{:else if d.managed?.service === 'running'}
+											<span class="badge badge-sm tone-ok">Servicio activo</span>
+										{/if}
+									{:else if d.managed}
+										<span class="badge badge-sm tone-warn" title="La consola aún no ha confirmado el código de 6 cifras">Agente sin confirmar</span>
+									{/if}
 									{#if d.app_version && newest && versionLess(d.app_version, newest)}
 										<span class="badge badge-sm tone-warn" title="La versión más reciente en tus equipos es la {newest}">Actualizar a {newest}</span>
 									{/if}
@@ -303,6 +322,7 @@
 								>
 								{#if menu === d.id}
 									<div class="menu" id="menu-{d.id}">
+										{#if !d.managed_by}
 										<button onclick={() => openDialog('rename', d)}>Cambiar nombre</button>
 										<label>
 											Cliente
@@ -311,6 +331,7 @@
 												{#each db.clients as c}<option value={c.id}>{c.name}</option>{/each}
 											</select>
 										</label>
+										{/if}
 										<button class="danger" onclick={() => openDialog('remove', d)}>Desvincular</button>
 									</div>
 								{/if}

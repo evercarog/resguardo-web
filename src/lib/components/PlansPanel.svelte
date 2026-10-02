@@ -30,7 +30,9 @@
 	<section class="card panel plans" id="copias" aria-labelledby="t-plans">
 		<div class="panel-head">
 			<h2 class="section-title" id="t-plans">Copias que se guardan aquí</h2>
-			{#if device && !device.remote_backup_enabled}
+			{#if device?.managed_by}
+				<p class="hint">Este equipo lo gestiona otro: sus copias se piden desde la consola, no desde la web.</p>
+			{:else if device && !device.remote_backup_enabled}
 				<p class="hint">Para copiar desde aquí, activa «Copias a distancia» en Resguardo, en ese equipo.</p>
 			{:else if device && !deviceOnline(device, now)}
 				<p class="hint">El equipo está sin conexión: podrás pedir una copia cuando vuelva a conectarse.</p>

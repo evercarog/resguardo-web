@@ -19,6 +19,10 @@ export interface Device {
 	remote_backup_enabled?: boolean;
 	/** Servidor de copias de Resguardo, solo mientras está activo (nunca credenciales). */
 	server?: BackupServer | null;
+	/** Consola que gestiona este equipo (Resguardo Agente), tras confirmar el SAS. */
+	managed_by?: string | null;
+	/** Lo que informa el agente gestionado. */
+	managed?: { console_device: string | null; seq: number | null; service: 'running' | 'stopped_by_admin' | null } | null;
 }
 
 /** Servidor de copias (rest-server) que publica un equipo para los demás. */

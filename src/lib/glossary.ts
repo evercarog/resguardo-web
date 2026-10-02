@@ -209,6 +209,12 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 		text: 'Un equipo tuyo que guarda las copias de tus otros equipos, como un servidor REST de solo añadir: cada equipo solo ve su carpeta y no puede borrar nada. Va cifrado (TLS) y cada equipo entra con su propia clave, que se entrega cifrada.',
 		todo: `Se activa en Resguardo, en ese equipo (Ajustes › Este equipo › «Servidor de copias»). Para usarlo desde otra sede hay que abrir un puerto en el router: Resguardo nunca lo abre solo.`
 	},
+	'equipo-gestionado': {
+		group: 'conceptos',
+		title: 'Equipo gestionado',
+		text: 'Un PC con «Resguardo Agente»: no tiene la app completa y lo administra otro equipo tuyo, la consola, que le manda la configuración firmada y cifrada. La web solo la transporta y muestra su estado: no puede darle órdenes.',
+		todo: `Las copias se cambian o se piden desde la consola. Si ves «Servicio detenido por un administrador», alguien paró Resguardo en ese PC: lo ya copiado sigue a salvo.`
+	},
 	avisos: {
 		group: 'web',
 		title: 'Avisos',
