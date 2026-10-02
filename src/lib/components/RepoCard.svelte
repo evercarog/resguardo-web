@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { CircleAlert, CirclePause, Cloud, CloudOff, LoaderCircle, TriangleAlert } from '@lucide/svelte';
+	import { CircleAlert, Cloud, CloudOff, LoaderCircle } from '@lucide/svelte';
 	import DaySquares from '$lib/components/DaySquares.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import ProtectionRing from '$lib/components/ProtectionRing.svelte';
+	import { repoSummary } from '$lib/summary';
 	import RemoteBackup from '$lib/components/RemoteBackup.svelte';
 	import { db } from '$lib/data.svelte';
 	import RelTime from '$lib/components/RelTime.svelte';
@@ -14,7 +16,6 @@
 		deviceOnline,
 		elapsedLabel,
 		nextExpected,
-		pauseUntilLabel,
 		protectionSummary,
 		repoScheduleLabel,
 		repoStatus,
@@ -43,6 +44,7 @@
 	const next = $derived(status.pause.active ? null : nextExpected(repo, now));
 	const off = $derived(repo.maintenance?.offsite ?? null);
 	const prot = $derived(repo.protection ? protectionSummary(repo.protection) : null);
+	const summary = $derived(repoSummary(repo, status, now));
 	/** «Copiar ahora»: solo si el equipo lo permite y está conectado. */
 	const plans = $derived(repo.plans ?? []);
 	const canRemote = $derived(!!device?.remote_backup_enabled && !!device && deviceOnline(device, now) && plans.length > 0);
@@ -82,8 +84,11 @@
 		<div class="title">
 			<h3><a {href}>{repo.name}</a></h3>
 		</div>
-		<StatusChip {level} />
+		<StatusChip {level} tip />
 	</header>
+
+	<!-- El repositorio en una frase (versión corta) -->
+	<p class="summary">{summary.short}</p>
 
 	<!-- Lo que hay que saber ya -->
 	{#if running}
@@ -92,24 +97,14 @@
 	{#if task}
 		<TaskProgress {repo} {device} {now} />
 	{/if}
-	{#if repo.offsite_hold}
-		<p class="alert tone-bad"><CloudOff size={14} aria-hidden="true" /> Subida a la nube frenada: hay un cambio inusual por revisar.</p>
-	{/if}
+	<!-- La frase ya dice si está atrasado, en pausa o frenado: aquí, solo el mensaje del fallo. -->
 	{#if status.level === 'failed' && repo.last_run?.message}
 		<p class="alert tone-bad"><CircleAlert size={14} aria-hidden="true" /> {repo.last_run.message}</p>
-	{:else if (status.level === 'late' || status.level === 'overdue') && status.since !== null}
-		<p class="alert tone-{status.level === 'late' ? 'warn' : 'bad'}">
-			<TriangleAlert size={14} aria-hidden="true" />
-			{status.level === 'late' ? `${elapsedLabel(status.since - status.expected)} de retraso` : `Sin copias desde hace ${elapsedLabel(status.since)}`}
-		</p>
-	{/if}
-	{#if status.pause.active}
-		<p class="alert tone-paused"><CirclePause size={14} aria-hidden="true" /> Copias automáticas en pausa {pauseUntilLabel(status.pause.until)}</p>
 	{/if}
 
 	<dl class="facts">
 		<div>
-			<dt>Última versión</dt>
+			<dt>Última versión <InfoTip term="ultima-version" /></dt>
 			<dd>
 				{#if status.last}<RelTime iso={status.last} {now} />{:else}<span class="faint">Todavía ninguna</span>{/if}
 			</dd>
@@ -120,12 +115,12 @@
 			{/if}
 		</div>
 		<div>
-			<dt>Próxima</dt>
+			<dt>Próxima <InfoTip term="proxima" /></dt>
 			<dd title={next ? formatDate(next) : undefined}>{status.pause.active ? 'En pausa' : next ? nextLabel(next) : '—'}</dd>
 			<dd class="sub">{repoScheduleLabel(repo)}</dd>
 		</div>
 		<div>
-			<dt>Versiones</dt>
+			<dt>Versiones <InfoTip term="versiones" /></dt>
 			<dd class="num">{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</dd>
 			<dd class="sub num">{repo.last_total_bytes != null ? `${formatBytes(repo.last_total_bytes)} protegidos` : 'Nada guardado todavía'}</dd>
 		</div>
@@ -221,7 +216,16 @@
 	.facts > div {
 		min-width: 0;
 	}
+	.summary {
+		margin-top: calc(-1 * var(--sp-2));
+		font-size: var(--fs-sm);
+		line-height: var(--lh-sm);
+		color: var(--text-2);
+	}
 	dt {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
 		font-size: var(--fs-xs);
 		line-height: var(--lh-xs);
 		font-weight: 500;

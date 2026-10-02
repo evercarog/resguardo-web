@@ -9,6 +9,9 @@
 	import PlaceIcon from '$lib/components/PlaceIcon.svelte';
 	import PlansPanel from '$lib/components/PlansPanel.svelte';
 	import ProtectionPanel from '$lib/components/ProtectionPanel.svelte';
+	import RepoFlow from '$lib/components/RepoFlow.svelte';
+	import RepoHistory from '$lib/components/RepoHistory.svelte';
+	import { repoSummary } from '$lib/summary';
 	import RelTime from '$lib/components/RelTime.svelte';
 	import StatusChip from '$lib/components/StatusChip.svelte';
 	import TaskProgress from '$lib/components/TaskProgress.svelte';
@@ -156,8 +159,18 @@
 					<InfoTip text={REPO_TIP} label="Qué son los destinos y los repositorios" />
 				</p>
 			</div>
-			{#if status}<StatusChip level={chipLevel(repo, status.level)} />{/if}
+			{#if status}<StatusChip level={chipLevel(repo, status.level)} tip />{/if}
 		</header>
+
+		<!-- El repositorio en una frase -->
+		{#if status}
+			{@const sum = repoSummary(repo, status, now)}
+			<p class="summary tone-{sum.tone}">
+				<span class="lead">{sum.lead}</span>
+				{#if sum.facts}{' '}{sum.facts}{/if}
+				{#if sum.missing}{' '}<span class="missing">{sum.missing}</span>{/if}
+			</p>
+		{/if}
 
 		{#if repo.offsite_hold}
 			<div class="notice notice-danger hold" role="alert">
@@ -194,28 +207,30 @@
 		<!-- Cifras -->
 		<div class="card stats">
 			<div class="stat">
-				<span class="label">Última versión</span>
+				<span class="label">Última versión <InfoTip term="ultima-version" /></span>
 				<strong class="value">{#if status?.last}<RelTime iso={status.last} {now} capitalize />{:else}—{/if}</strong>
 				<span class="sub">
 					{#if status?.unchangedAt}Revisada <RelTime iso={status.unchangedAt} {now} /> · sin cambios{:else if status?.last}{formatDate(status.last)}{/if}
 				</span>
 			</div>
 			<div class="stat">
-				<span class="label">Versiones</span>
+				<span class="label">Versiones <InfoTip term="versiones" /></span>
 				<strong class="value num">{repo.snapshots_count != null ? formatNumber(repo.snapshots_count) : '—'}</strong>
 				<span class="sub">guardadas en este repositorio</span>
 			</div>
 			<div class="stat">
-				<span class="label">Tamaño protegido</span>
+				<span class="label">Tamaño protegido <InfoTip term="tamano-protegido" /></span>
 				<strong class="value num">{formatBytes(repo.last_total_bytes)}</strong>
 				<span class="sub">en la última versión</span>
 			</div>
 			<div class="stat">
-				<span class="label">Duración media</span>
+				<span class="label">Duración media <InfoTip term="duracion-media" /></span>
 				<strong class="value num">{avgDuration != null ? formatDuration(avgDuration) : '—'}</strong>
 				<span class="sub num">{avgAdded != null ? `+${formatBytes(avgAdded)} por versión` : ''}</span>
 			</div>
 		</div>
+
+		<RepoFlow {repo} {now} />
 
 		<ProtectionPanel {repo} {now} />
 
@@ -224,6 +239,8 @@
 		<MaintenancePanel {repo} {now} />
 
 		{#if error}<div class="notice notice-danger" role="alert"><CircleAlert size={16} /><p>{error}</p></div>{/if}
+
+		<RepoHistory {repo} />
 
 		<!-- Actividad y versiones -->
 		<section class="card block" aria-labelledby="t-actividad">
@@ -367,7 +384,25 @@
 	.stat + .stat {
 		border-left: 1px solid var(--border);
 	}
+	/* El repositorio en una frase. */
+	.summary {
+		max-width: 72ch;
+		margin-top: calc(-1 * var(--sp-2));
+		font-size: var(--fs-body);
+		line-height: 22px;
+		color: var(--text-2);
+	}
+	.summary .lead {
+		font-weight: 500;
+		color: var(--text-1);
+	}
+	.summary .missing {
+		color: var(--warn);
+	}
 	.label {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
 		font-size: var(--fs-xs);
 		line-height: var(--lh-xs);
 		font-weight: 500;
